@@ -204,7 +204,7 @@ footer{text-align:center;padding:40px;font-size:11px;color:var(--text-dim);
       <div class="step-num">4</div>
       <div class="step-body">
         <h4>Abrir el monitor y cargar los archivos</h4>
-        <p>Hacé doble click en <strong>intrade_monitor.html</strong> en Chrome o Edge. El nombre del cliente se detecta automáticamente de la Valuación. Arrastrá los archivos a sus zonas de carga y presioná <strong>Generar monitor de cartera</strong>.</p>
+        <p>Abrí el monitor en <strong><a href="https://finanzasconnico.github.io/intrade-monitor/" style="color:var(--blue-light)">finanzasconnico.github.io/intrade-monitor</a></strong> o hacé doble click en el archivo local. Ingresá el nombre del cliente manualmente, arrastrá los archivos a sus zonas de carga y presioná <strong>Generar monitor de cartera</strong>.</p>
       </div>
     </div>
     <div class="step">
@@ -253,8 +253,8 @@ footer{text-align:center;padding:40px;font-size:11px;color:var(--text-dim);
       </tr>
       <tr>
         <td>Valor Actual</td>
-        <td>Suma de todos los instrumentos en cartera valorados al precio de cierre del reporte, convertidos a USD al MEP actual. Más los saldos de liquidez.</td>
-        <td>RentaFinanciera · Posición de Títulos</td>
+        <td>Suma de todos los instrumentos en cartera valorados al precio de cierre del reporte, convertidos a USD al MEP actual. Incluye liquidez (USD cable, USD MEP, pesos).</td>
+        <td>VALUACION.xls · precios y cantidades exactas de AdCap</td>
       </tr>
       <tr>
         <td>P. Compra (USD)</td>
@@ -278,43 +278,33 @@ footer{text-align:center;padding:40px;font-size:11px;color:var(--text-dim);
 <!-- PAGE 4: DIFERENCIAS CON ADCAP -->
 <div class="page">
   <div class="section-label">Contexto importante</div>
-  <h2 class="title">Diferencias con el resumen de AdCap</h2>
-  <p class="subtitle">Por qué el valor total del monitor puede diferir del "Resumen de Posición Consolidada" de AdCap.</p>
+  <h2 class="title">Coincidencia con AdCap</h2>
+  <p class="subtitle">El monitor usa la Valuación Final de AdCap como fuente — los valores deberían coincidir con lo que el cliente ve en su cuenta.</p>
 
-  <div class="highlight gold" style="margin-bottom:28px">
-    <p><strong>Conclusión directa:</strong> las diferencias son esperables, metodológicas y no representan un error. Para seguimiento mensual con el cliente, no tienen impacto relevante en la lectura de rentabilidad.</p>
+  <div class="highlight" style="margin-bottom:28px;border-color:rgba(46,204,138,.3);background:rgba(46,204,138,.05)">
+    <p><strong style="color:var(--green)">Los precios de posición son exactamente los de AdCap.</strong> Al usar la Valuación Final como fuente, los valores de cada instrumento, el PPP y la liquidez son los mismos que AdCap muestra al cliente. No hay desfasaje de precios ni diferencias por intereses corridos.</p>
   </div>
 
   <table class="diff-table">
     <thead>
-      <tr><th>Diferencia</th><th>Explicación</th><th>Magnitud típica</th></tr>
+      <tr><th>Concepto</th><th>Explicación</th><th>Magnitud</th></tr>
     </thead>
     <tbody>
       <tr>
-        <td>Desfasaje de precios por fecha del reporte</td>
-        <td>El RentaFinanciera es un snapshot a la fecha de exportación. Si el reporte es del 19/06 y hoy es el 26/06, los precios de todos los activos tienen 7 días de diferencia. Los CEDEARs, ONs y FCIs se mueven diariamente.</td>
-        <td>0.3% – 1.5% del total</td>
+        <td>MEP de conversión</td>
+        <td>AdCap usa su MEP interno de cierre. El monitor usa el precio compra de DolarAPI al momento de generar el reporte. Afecta la conversión de posiciones en pesos (CEDEARs, ETFs, FCIs en ARS).</td>
+        <td>USD 10–50 típicamente</td>
       </tr>
       <tr>
-        <td>MEP de referencia distinto</td>
-        <td>AdCap usa su propio tipo de cambio MEP interno de cierre para convertir posiciones en ARS a USD. Nosotros usamos el precio compra de DolarAPI. La diferencia suele ser de $1 a $5 ARS por dólar.</td>
-        <td>USD 50 – 200</td>
-      </tr>
-      <tr>
-        <td>Intereses corridos en ONs</td>
-        <td>AdCap puede incluir los intereses devengados pero no cobrados en la valuación de las ONs (precio sucio). El RentaFinanciera muestra precio limpio o al último pago.</td>
-        <td>USD 20 – 150 según cuándo fue el último cupón</td>
-      </tr>
-      <tr>
-        <td>Liquidez no incluida</td>
-        <td>Si no se carga el archivo de Estado de Cuenta (CTACTEMON), los saldos en efectivo (USD MEP, USD Cable, Pesos) no se suman al valor actual.</td>
-        <td>Variable · depende del saldo disponible</td>
+        <td>MEP histórico de depósitos</td>
+        <td>Para calcular el capital invertido en ARS, el monitor busca el MEP de cada fecha de depósito vía ArgentinaDatos API. Si la API no tiene ese día exacto, usa una estimación mensual. Solo afecta el capital invertido, no el valor actual.</td>
+        <td>Mínimo</td>
       </tr>
     </tbody>
   </table>
 
   <div class="highlight">
-    <p><strong>Recomendación para la reunión con el cliente:</strong> exportá el RentaFinanciera el mismo día de la reunión para minimizar el desfasaje de precios. Si el cliente pregunta por la diferencia con lo que ve en AdCap, explicá que el monitor usa el MEP del momento y precios del día de exportación — la diferencia es de referencia, no de patrimonio real.</p>
+    <p><strong>Recomendación:</strong> exportá la Valuación Final y el Movimientos el mismo día de la reunión. El valor actual va a coincidir con lo que el cliente ve en AdCap. El único número que puede diferir levemente es el capital invertido (por el MEP histórico de los depósitos en ARS).</p>
   </div>
 </div>
 
