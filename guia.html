@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InTrade Capital — Guía del Monitor de Cartera</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+:root{
+  --bg:#080d1a;--surface:#0d1526;--surface2:#111d36;--surface3:#162040;
+  --border:#1c2d50;--border2:#243660;
+  --text:#e8edf8;--text-muted:#607090;--text-dim:#2a3a60;
+  --blue:#1a6ef5;--blue-light:#3d8bff;--blue-dim:rgba(26,110,245,.1);
+  --gold:#f0b429;--gold-dim:rgba(240,180,41,.08);
+  --green:#2ecc8a;--danger:#e05252;
+  --r:8px;--r2:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:14px}
+
+/* ── COVER ── */
+.cover{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:60px 40px;position:relative;overflow:hidden}
+.cover::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 800px 600px at 50% 40%,rgba(26,110,245,.18) 0%,transparent 70%)}
+.cover-logo{width:72px;height:72px;border-radius:50%;border:2px solid var(--border2);
+  background:var(--surface2);display:flex;align-items:center;justify-content:center;
+  font-size:32px;margin:0 auto 24px}
+.cover h1{font-size:42px;font-weight:700;color:#fff;letter-spacing:-.5px;margin-bottom:8px}
+.cover h2{font-size:16px;font-weight:400;color:var(--blue-light);letter-spacing:.2em;
+  text-transform:uppercase;margin-bottom:32px}
+.cover-divider{width:60px;height:2px;background:var(--blue);margin:0 auto 32px}
+.cover-desc{font-size:14px;color:var(--text-muted);max-width:520px;line-height:1.8}
+.cover-badge{display:inline-block;background:var(--blue-dim);border:1px solid rgba(26,110,245,.3);
+  border-radius:20px;padding:6px 18px;font-size:11px;color:var(--blue-light);
+  letter-spacing:.1em;text-transform:uppercase;margin-top:40px}
+
+/* ── LAYOUT ── */
+.page{max-width:860px;margin:0 auto;padding:60px 40px}
+.page+.page{padding-top:20px}
+
+/* ── SECTION HEADERS ── */
+.section-label{font-size:10px;color:var(--blue-light);letter-spacing:.16em;
+  text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+h2.title{font-size:26px;font-weight:700;color:#fff;margin-bottom:6px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:36px}
+
+/* ── CARDS ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:40px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:22px}
+.card-icon{width:36px;height:36px;border-radius:var(--r);background:var(--blue-dim);
+  border:1px solid rgba(26,110,245,.3);display:flex;align-items:center;justify-content:center;
+  font-size:18px;margin-bottom:14px}
+.card h3{font-size:13px;font-weight:600;color:#fff;margin-bottom:6px}
+.card p{font-size:12px;color:var(--text-muted);line-height:1.7}
+
+/* ── STEPS ── */
+.steps{display:flex;flex-direction:column;gap:0;margin-bottom:40px}
+.step{display:flex;gap:20px;padding:20px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--blue);
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+  font-weight:700;color:#fff;flex-shrink:0;margin-top:2px}
+.step-body h4{font-size:14px;font-weight:600;color:#fff;margin-bottom:6px}
+.step-body p{font-size:12px;color:var(--text-muted);line-height:1.7}
+.step-body .hint{display:inline-block;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:var(--r);padding:8px 14px;font-size:11px;color:var(--text-muted);
+  margin-top:10px;font-family:monospace}
+.step-body .hint strong{color:var(--blue-light)}
+
+/* ── HIGHLIGHT BOX ── */
+.highlight{background:var(--blue-dim);border:1px solid rgba(26,110,245,.25);
+  border-left:3px solid var(--blue);border-radius:var(--r);padding:16px 20px;
+  margin-bottom:20px}
+.highlight p{font-size:12px;color:var(--text-muted);line-height:1.7}
+.highlight strong{color:var(--text)}
+.highlight.gold{background:var(--gold-dim);border-color:rgba(240,180,41,.25);border-left-color:var(--gold)}
+.highlight.gold strong{color:var(--gold)}
+
+/* ── DIFF TABLE ── */
+.diff-table{width:100%;border-collapse:collapse;margin-bottom:32px}
+.diff-table th{background:var(--surface2);color:var(--text-muted);font-size:10px;
+  font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:10px 14px;
+  text-align:left;border-bottom:1px solid var(--border2)}
+.diff-table td{padding:12px 14px;font-size:12px;border-bottom:1px solid var(--border);
+  vertical-align:top;line-height:1.6}
+.diff-table td:first-child{color:var(--text-muted);width:30%;font-weight:500}
+.diff-table td:nth-child(2){color:var(--text)}
+.diff-table td:nth-child(3){color:var(--green);font-size:11px}
+.diff-table tr:last-child td{border-bottom:none}
+
+/* ── METRIC SHOWCASE ── */
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:32px}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);
+  padding:18px;text-align:center}
+.metric-label{font-size:9px;color:var(--text-muted);text-transform:uppercase;
+  letter-spacing:.1em;margin-bottom:8px}
+.metric-val{font-size:22px;font-weight:300;color:#fff;font-family:monospace}
+.metric-val.pos{color:var(--green)}.metric-val.neg{color:var(--danger)}
+.metric-sub{font-size:10px;color:var(--text-dim);margin-top:4px}
+
+/* ── FOOTER ── */
+footer{text-align:center;padding:40px;font-size:11px;color:var(--text-dim);
+  border-top:1px solid var(--border);max-width:860px;margin:0 auto}
+
+/* ── PRINT ── */
+@media print{
+  @page{margin:15mm 14mm;size:A4}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .cover{min-height:auto;padding:40px;page-break-after:always}
+  .cover::before{display:none}
+  .page{page-break-inside:avoid;padding:30px 20px}
+  .step,.card,.highlight{page-break-inside:avoid}
+  body{background:#080d1a!important}
+}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-logo">🐂</div>
+  <h1>Monitor de Cartera</h1>
+  <h2>InTrade Capital</h2>
+  <div class="cover-divider"></div>
+  <p class="cover-desc">
+    Herramienta de seguimiento de cartera en dólares MEP.<br>
+    Diseñada para el equipo de InTrade Capital para el análisis<br>
+    y presentación de carteras de clientes de AdCap.
+  </p>
+  <div class="cover-badge">Guía de uso · Versión 1.0</div>
+</div>
+
+<!-- PAGE 1: QUÉ ES -->
+<div class="page">
+  <div class="section-label">Introducción</div>
+  <h2 class="title">¿Qué hace este monitor?</h2>
+  <p class="subtitle">Una sola vista de toda la cartera en dólares, sin tener que hacer cálculos manuales.</p>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h3>Rentabilidad total en USD</h3>
+      <p>Compara cuánto depositó el cliente (capital invertido) contra cuánto vale la cartera hoy, todo en dólares MEP.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📈</div>
+      <h3>Posición activo por activo</h3>
+      <p>Cada instrumento con su precio de compra promedio, precio actual, ganancia/pérdida en USD y porcentaje de retorno.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">💵</div>
+      <h3>Depósitos en perspectiva</h3>
+      <p>Lista de cada ingreso de capital del cliente, convertido a USD al tipo de cambio MEP del día del depósito.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔄</div>
+      <h3>MEP automático</h3>
+      <p>Se actualiza solo desde DolarAPI. También se puede ingresar manualmente si preferís usar otra referencia.</p>
+    </div>
+  </div>
+
+  <div class="highlight">
+    <p><strong>Fuente de datos:</strong> dos archivos Excel que exportás directamente desde AdCap: <strong>VALUACION.xls</strong> (posiciones actuales, precios, PPP y liquidez) y <strong>MOVIMIENTOS.xls</strong> (flujos de capital del cliente). No requiere conexión a AdCap ni credenciales.</p>
+  </div>
+</div>
+
+<!-- PAGE 2: CÓMO USAR -->
+<div class="page">
+  <div class="section-label">Paso a paso</div>
+  <h2 class="title">Cómo generar el monitor</h2>
+  <p class="subtitle">Desde AdCap hasta el dashboard listo para el cliente en menos de 2 minutos.</p>
+
+  <div class="highlight gold" style="margin-bottom:24px">
+    <p><strong>Archivos requeridos:</strong> Valuación Final + Movimientos · La liquidez (USD disponible, Pesos) ya viene incluida en la Valuación Final.</p>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <h4>Exportar Valuación Final desde AdCap <span style="font-size:10px;color:var(--blue-light);font-weight:400">(REQUERIDO)</span></h4>
+        <p>En AdCap, ir a <strong>Reportes → Posición Consolidada → Valuación Final → Exportar XLS</strong>. Este es el archivo principal: contiene todas las posiciones actuales, precios, PPP y el nombre del cliente. El monitor lo detecta automáticamente.</p>
+        <div class="hint">Nombre típico: <strong>VALUACION_AAAA-MM-DD.xls</strong></div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <h4>Exportar Movimientos desde AdCap <span style="font-size:10px;color:var(--blue-light);font-weight:400">(REQUERIDO)</span></h4>
+        <p>Descargá el reporte de <strong>Movimientos</strong> desde el inicio de la relación con el cliente hasta hoy. Contiene los ingresos de capital ("Recibo de Cobro") necesarios para calcular el capital total invertido.</p>
+        <div class="hint">Nombre típico: <strong>MOVIMIENTOS_AAAA-MM-DD_AAAA-MM-DD.xls</strong></div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num" style="background:var(--gold-dim);border-color:rgba(240,180,41,.4);color:var(--gold)">3</div>
+      <div class="step-body">
+        <h4>Exportar Renta Financiera <span style="font-size:10px;color:var(--gold);font-weight:400">(OPCIONAL — solo para auditoría)</span></h4>
+        <p>Solo es necesario si querés usar el <strong>panel de auditoría</strong> que muestra el detalle boleto por boleto de cada compra. Sin este archivo el monitor funciona completo; solo no tendrá el desglose de transacciones individuales.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-body">
+        <h4>Abrir el monitor y cargar los archivos</h4>
+        <p>Hacé doble click en <strong>intrade_monitor.html</strong> en Chrome o Edge. El nombre del cliente se detecta automáticamente de la Valuación. Arrastrá los archivos a sus zonas de carga y presioná <strong>Generar monitor de cartera</strong>.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-body">
+        <h4>Revisar y presentar o imprimir</h4>
+        <p>El dashboard se genera en segundos. Podés mostrarlo en pantalla o usar <strong>Imprimir PDF</strong> para generar un PDF de 3 páginas con diseño profesional InTrade Capital.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 3: MÉTRICAS -->
+<div class="page">
+  <div class="section-label">Qué muestra cada número</div>
+  <h2 class="title">Cómo leer el dashboard</h2>
+  <p class="subtitle">Tres números principales en el hero, más el detalle activo por activo abajo.</p>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Capital Invertido (USD)</div>
+      <div class="metric-val">47.173</div>
+      <div class="metric-sub">Suma de todos los depósitos</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Valor Actual (USD)</div>
+      <div class="metric-val">47.025</div>
+      <div class="metric-sub">Posiciones + liquidez / MEP</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Ganancia / Pérdida</div>
+      <div class="metric-val neg">-147</div>
+      <div class="metric-sub">Diferencia en USD</div>
+    </div>
+  </div>
+
+  <table class="diff-table">
+    <thead>
+      <tr><th>Concepto</th><th>Cómo se calcula</th><th>Fuente</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Capital Invertido</td>
+        <td>Cada depósito en USD se toma directo. Cada depósito en ARS se divide por el MEP del día del depósito (dato histórico de ArgentinaDatos API).</td>
+        <td>MOVIMIENTOS.xls · Filas "Recibo de Cobro"</td>
+      </tr>
+      <tr>
+        <td>Valor Actual</td>
+        <td>Suma de todos los instrumentos en cartera valorados al precio de cierre del reporte, convertidos a USD al MEP actual. Más los saldos de liquidez.</td>
+        <td>RentaFinanciera · Posición de Títulos</td>
+      </tr>
+      <tr>
+        <td>P. Compra (USD)</td>
+        <td>Precio promedio ponderado de todas las compras del instrumento. Para FCIs: cuotaparte de suscripción promedio. Para ONs y bonos en USD: precio en dólares directo.</td>
+        <td>RentaFinanciera · Boletos</td>
+      </tr>
+      <tr>
+        <td>P. Actual (USD)</td>
+        <td>Precio de cierre al día del reporte. Para instrumentos en ARS: precio ARS ÷ MEP actual. Para instrumentos en USD: precio directo.</td>
+        <td>RentaFinanciera · Posición de Títulos</td>
+      </tr>
+      <tr>
+        <td>MEP utilizado</td>
+        <td>Tipo de cambio dólar MEP precio compra, obtenido automáticamente de DolarAPI al abrir el monitor. Editable manualmente si querés usar otro valor.</td>
+        <td>DolarAPI (tiempo real)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- PAGE 4: DIFERENCIAS CON ADCAP -->
+<div class="page">
+  <div class="section-label">Contexto importante</div>
+  <h2 class="title">Diferencias con el resumen de AdCap</h2>
+  <p class="subtitle">Por qué el valor total del monitor puede diferir del "Resumen de Posición Consolidada" de AdCap.</p>
+
+  <div class="highlight gold" style="margin-bottom:28px">
+    <p><strong>Conclusión directa:</strong> las diferencias son esperables, metodológicas y no representan un error. Para seguimiento mensual con el cliente, no tienen impacto relevante en la lectura de rentabilidad.</p>
+  </div>
+
+  <table class="diff-table">
+    <thead>
+      <tr><th>Diferencia</th><th>Explicación</th><th>Magnitud típica</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Desfasaje de precios por fecha del reporte</td>
+        <td>El RentaFinanciera es un snapshot a la fecha de exportación. Si el reporte es del 19/06 y hoy es el 26/06, los precios de todos los activos tienen 7 días de diferencia. Los CEDEARs, ONs y FCIs se mueven diariamente.</td>
+        <td>0.3% – 1.5% del total</td>
+      </tr>
+      <tr>
+        <td>MEP de referencia distinto</td>
+        <td>AdCap usa su propio tipo de cambio MEP interno de cierre para convertir posiciones en ARS a USD. Nosotros usamos el precio compra de DolarAPI. La diferencia suele ser de $1 a $5 ARS por dólar.</td>
+        <td>USD 50 – 200</td>
+      </tr>
+      <tr>
+        <td>Intereses corridos en ONs</td>
+        <td>AdCap puede incluir los intereses devengados pero no cobrados en la valuación de las ONs (precio sucio). El RentaFinanciera muestra precio limpio o al último pago.</td>
+        <td>USD 20 – 150 según cuándo fue el último cupón</td>
+      </tr>
+      <tr>
+        <td>Liquidez no incluida</td>
+        <td>Si no se carga el archivo de Estado de Cuenta (CTACTEMON), los saldos en efectivo (USD MEP, USD Cable, Pesos) no se suman al valor actual.</td>
+        <td>Variable · depende del saldo disponible</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="highlight">
+    <p><strong>Recomendación para la reunión con el cliente:</strong> exportá el RentaFinanciera el mismo día de la reunión para minimizar el desfasaje de precios. Si el cliente pregunta por la diferencia con lo que ve en AdCap, explicá que el monitor usa el MEP del momento y precios del día de exportación — la diferencia es de referencia, no de patrimonio real.</p>
+  </div>
+</div>
+
+<!-- PAGE 5: TIPS -->
+<div class="page">
+  <div class="section-label">Tips y casos especiales</div>
+  <h2 class="title">Situaciones frecuentes</h2>
+  <p class="subtitle">Casos que pueden aparecer y cómo manejarlos.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">✎</div>
+      <div class="step-body">
+        <h4>FCIs sin precio de compra ("saldo anterior")</h4>
+        <p>Cuando un FCI tiene posición previa al período del reporte, no hay boleto de compra en el Excel y aparece como "saldo anterior". Hacé click en el ícono de lápiz junto a ese instrumento, ingresá el PPP (precio promedio ponderado) que AdCap muestra en su página de rendimientos, y el monitor recalcula automáticamente. El valor queda guardado en el browser hasta que lo borrés.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">$</div>
+      <div class="step-body">
+        <h4>El MEP no se actualiza automáticamente</h4>
+        <p>Si no hay conexión a internet, el MEP no se carga desde DolarAPI. En ese caso aparece en amarillo. Podés ingresar el valor manualmente en el panel "Dólar MEP actual" antes de generar el monitor.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">🔄</div>
+      <div class="step-body">
+        <h4>Cambiar el MEP después de generar el monitor</h4>
+        <p>Podés modificar el MEP en cualquier momento desde el topbar del dashboard y presionar "Recalcular". Todos los valores se actualizan al instante sin necesidad de volver a cargar los archivos.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">🖨</div>
+      <div class="step-body">
+        <h4>Imprimir o exportar como PDF</h4>
+        <p>Usá el botón "Imprimir PDF" en el topbar. Se abre el diálogo de impresión del browser — seleccioná "Guardar como PDF" como destino. El diseño oscuro con colores InTrade se preserva en el PDF. Recomendamos orientación vertical (Portrait) y tamaño A4.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">👤</div>
+      <div class="step-body">
+        <h4>Cambiar de cliente</h4>
+        <p>Cerrá el browser o refrescá la página (F5) para volver a la pantalla de carga. Los datos no se guardan entre sesiones — cada vez que abrís el archivo empezás desde cero.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 6: AUDITORÍA -->
+<div class="page">
+  <div class="section-label">Transparencia y verificación</div>
+  <h2 class="title">Panel de auditoría de compras</h2>
+  <p class="subtitle">Verificá exactamente cómo se calculó el precio de compra de cada instrumento, operación por operación.</p>
+
+  <div class="highlight" style="margin-bottom:28px">
+    <p><strong>Cómo acceder:</strong> en la tabla de posiciones, los instrumentos con un <strong style="color:#3d8bff">▶</strong> al lado del ticker tienen historial de compras. Hacé click en cualquier fila de ese instrumento para expandir el detalle.</p>
+  </div>
+
+  <div class="cards" style="grid-template-columns:1fr 1fr">
+    <div class="card">
+      <div class="card-icon">📋</div>
+      <h3>Qué muestra el panel</h3>
+      <p>Cada fila es un boleto de compra individual. Muestra la fecha, cantidad, precio ARS, neto pagado (con comisiones), el MEP utilizado con su fuente, y el equivalente en USD calculado.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔢</div>
+      <h3>Cómo se calcula el PPP</h3>
+      <p>PPP = suma de USD de todas las compras ÷ cantidad total. El USD de cada compra = Neto ARS ÷ MEP del día. El Neto ya incluye la comisión de AdCap (~0,6% + IVA).</p>
+    </div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;margin-bottom:28px">
+    <div style="background:var(--surface2);padding:10px 16px;font-size:10px;font-weight:600;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border)">
+      Ejemplo · Detalle de compras de VISTA (CEDEAR)
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="background:var(--surface2)">
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border2)">Fecha</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border2)">Cantidad</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border2)">Precio ARS</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border2)">Neto ARS</th>
+            <th style="padding:8px 12px;text-align:left;color:var(--text-muted);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border2)">MEP utilizado</th>
+            <th style="padding:8px 12px;text-align:right;color:var(--text-muted);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border2)">USD</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 12px;color:var(--text);font-family:monospace">18/05/2026</td>
+            <td style="padding:8px 12px;color:var(--text-muted);font-family:monospace">100</td>
+            <td style="padding:8px 12px;color:var(--text-muted);font-family:monospace">$35.660</td>
+            <td style="padding:8px 12px;color:var(--text);font-family:monospace">$35.919</td>
+            <td style="padding:8px 12px;color:var(--text-muted);font-family:monospace">$1.421 <span style="font-size:8px;background:var(--surface2);border:1px solid rgba(46,204,138,.3);border-radius:4px;padding:1px 5px;color:var(--green)">ArgentinaDatos</span></td>
+            <td style="padding:8px 12px;text-align:right;color:var(--text);font-family:monospace;font-weight:600">USD 25,27</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);background:var(--surface2)">
+            <td colspan="5" style="padding:8px 12px;color:var(--text-muted);font-size:11px">PPP calculado = USD 25,27 ÷ 100 unidades</td>
+            <td style="padding:8px 12px;text-align:right;color:var(--blue-light);font-family:monospace;font-weight:600">USD 25,27/u</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="highlight gold">
+    <p><strong>Fuentes de MEP — confiabilidad:</strong></p>
+    <p style="margin-top:6px">
+      <strong style="color:var(--green)">ArgentinaDatos</strong> — dato real diario de la API pública. Alta confiabilidad.<br>
+      <strong style="color:var(--green)">Boleto USD</strong> — extraído del Tipo de Cambio de una operación en dólares del mismo día. Muy preciso.<br>
+      <strong style="color:var(--gold)">Estimado ⚠</strong> — promedio mensual (fallback). Puede diferir ±2% del valor real. Si aparece este badge, conviene ingresar el MEP real de ese día para mayor precisión.
+    </p>
+  </div>
+
+  <div style="margin-top:24px">
+    <div class="section-label">Diferencia con AdCap · Lo que no podemos calcular</div>
+    <p style="font-size:13px;color:var(--text-muted);line-height:1.8;margin-top:12px">
+      Aunque los precios de los activos coincidan, puede quedar una diferencia de <strong style="color:var(--text)">USD 100–400</strong> con el resumen de AdCap. Las causas principales son:
+    </p>
+    <div class="steps" style="margin-top:16px">
+      <div class="step">
+        <div class="step-num" style="background:var(--gold-dim);border:1px solid rgba(240,180,41,.4);color:var(--gold);font-size:14px">!</div>
+        <div class="step-body">
+          <h4>Intereses corridos en ONs (Obligaciones Negociables)</h4>
+          <p>AdCap valúa las ONs con <em>precio sucio</em>: precio de mercado + cupón devengado desde el último pago. El RentaFinanciera puede mostrar solo el precio limpio. En una ON de USD 8.000 nominal al 7% anual, se devengan USD 1,5/día — si el último cupón fue hace 3 meses, son USD 135 de diferencia. Este valor no está disponible en los archivos Excel.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num" style="background:var(--gold-dim);border:1px solid rgba(240,180,41,.4);color:var(--gold);font-size:14px">!</div>
+        <div class="step-body">
+          <h4>MEP de referencia</h4>
+          <p>AdCap usa su propio MEP interno de cierre para convertir posiciones en ARS a USD. El monitor usa el precio compra de DolarAPI. La diferencia suele ser $1–5 ARS por dólar, que en una cartera grande puede sumar USD 30–100.</p>
+        </div>
+      </div>
+    </div>
+    <div class="highlight" style="margin-top:8px">
+      <p><strong>Conclusión:</strong> la diferencia residual es <em>estructural</em> — no es un error del monitor ni de AdCap. Para el seguimiento mensual con el cliente, lo relevante es la tendencia y la comparación entre períodos, no la coincidencia exacta con el número de AdCap.</p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  InTrade Capital · Monitor de Cartera · Guía de uso interna<br>
+  Desarrollado para el equipo de InTrade Capital · 2026
+</footer>
+
+</body>
+</html>

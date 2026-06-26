@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InTrade Capital — Monitor de Cartera</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#080d1a;--surface:#0d1526;--surface2:#111d36;--surface3:#162040;
+  --border:#1c2d50;--border2:#243660;--text:#e8edf8;--text-muted:#607090;--text-dim:#2a3a60;
+  --blue:#1a6ef5;--blue-light:#3d8bff;--blue-dim:rgba(26,110,245,.12);--blue-glow:rgba(26,110,245,.25);
+  --gold:#f0b429;--gold-dim:rgba(240,180,41,.08);
+  --danger:#e05252;--green:#2ecc8a;
+  --font:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'SF Mono','Fira Code',ui-monospace,monospace;
+  --r:8px;--r2:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:13px}
+
+/* UPLOAD */
+#upload-screen{max-width:620px;margin:0 auto;padding:48px 20px}
+.upload-hero{text-align:center;margin-bottom:32px}
+.upload-logo{width:56px;height:56px;margin:0 auto 14px;border-radius:50%;background:var(--surface2);border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:26px}
+.upload-hero h1{font-size:24px;font-weight:600;color:#fff;margin-bottom:6px}
+.upload-hero p{font-size:12px;color:var(--text-muted);line-height:1.7}
+.upload-step{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:18px;margin-bottom:10px}
+.upload-step.optional{border-color:rgba(240,180,41,.2)}
+.step-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.step-num{width:24px;height:24px;border-radius:50%;background:var(--blue-dim);border:1px solid rgba(26,110,245,.4);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--blue-light);flex-shrink:0}
+.step-num.opt{background:var(--gold-dim);border-color:rgba(240,180,41,.4);color:var(--gold)}
+.step-title{font-size:13px;font-weight:600;color:#fff}
+.step-hint{font-size:10px;color:var(--text-muted);margin-top:2px}
+.opt-badge{font-size:9px;color:var(--gold);background:var(--gold-dim);border:1px solid rgba(240,180,41,.3);border-radius:10px;padding:1px 7px;margin-left:6px;vertical-align:middle}
+.drop-zone{background:var(--bg);border:1.5px dashed rgba(255,255,255,.08);border-radius:var(--r);padding:16px;text-align:center;cursor:pointer;transition:all .2s}
+.drop-zone:hover,.drop-zone.over{border-color:var(--blue);background:var(--blue-dim)}
+.drop-zone.loaded{border-color:rgba(26,110,245,.5);background:var(--blue-dim)}
+.drop-zone.opt-loaded{border-color:rgba(240,180,41,.4);background:var(--gold-dim)}
+.drop-txt{font-size:11px;color:var(--text-muted)}
+.drop-name{font-size:11px;color:var(--blue-light);margin-top:4px;display:none}
+.client-field{margin-top:10px}
+.client-field label{display:block;font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.client-field input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);padding:9px 14px;color:var(--text);font-size:13px}
+.client-field input:focus{outline:none;border-color:var(--blue)}
+.btn-gen{width:100%;background:var(--blue);border:none;border-radius:var(--r);padding:14px;color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s,box-shadow .2s;margin-top:10px}
+.btn-gen:hover:not(:disabled){background:var(--blue-light);box-shadow:0 4px 20px var(--blue-glow)}
+.btn-gen:disabled{background:var(--surface3);cursor:not-allowed;color:var(--text-muted)}
+.upload-status{font-size:11px;color:var(--text-muted);text-align:center;margin-top:8px;min-height:16px}
+.mep-card{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r2);padding:14px 16px;margin-top:10px}
+.mep-card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.mep-card-title{font-size:12px;font-weight:600;color:#fff}
+.mep-status{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-muted)}
+.mep-dot{width:6px;height:6px;border-radius:50%;background:var(--text-dim)}
+.mep-dot.ok{background:var(--green)}.mep-dot.loading{background:var(--gold);animation:pulse .8s ease-in-out infinite}.mep-dot.error{background:var(--danger)}
+.mep-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mep-field label{display:block;font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.mep-field input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:var(--r);padding:8px 12px;color:var(--text);font-family:var(--mono);font-size:15px}
+.mep-field input:focus{outline:none;border-color:var(--blue)}
+.mep-field input.fresh{border-color:rgba(46,204,138,.4);color:var(--green)}
+.btn-mep-refresh{background:transparent;border:1px solid var(--border2);border-radius:var(--r);padding:5px 10px;color:var(--text-muted);font-size:10px;cursor:pointer;margin-top:8px}
+.btn-mep-refresh:hover{border-color:var(--blue);color:var(--blue-light)}
+.btn-mep-refresh:disabled{opacity:.4;cursor:not-allowed}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* LOADING */
+#loading{display:none;position:fixed;inset:0;background:rgba(8,13,26,.94);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+.spinner{width:32px;height:32px;border:2px solid rgba(255,255,255,.06);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:12px;color:var(--text-muted)}
+
+/* DASHBOARD */
+#dashboard{display:none}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:11px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar-brand{display:flex;align-items:center;gap:10px}
+.topbar-logo{width:34px;height:34px;border-radius:50%;background:var(--surface2);border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px}
+.topbar-name{font-size:15px;font-weight:600;color:#fff}
+.topbar-sub{font-size:9px;color:var(--blue-light);letter-spacing:.12em;text-transform:uppercase}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--text-muted)}
+.chip strong{color:var(--text)}
+.mep-badge{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid rgba(240,180,41,.25);border-radius:20px;padding:5px 12px;cursor:pointer}
+.mep-badge:hover{background:var(--gold-dim)}
+.mep-badge-dot{width:5px;height:5px;border-radius:50%;background:var(--green)}
+.mep-badge-dot.stale{background:var(--gold)}
+.mep-badge-txt{font-size:11px;font-family:var(--mono);color:var(--gold)}
+.btn-top{background:transparent;border:1px solid var(--border);border-radius:var(--r);padding:5px 12px;color:var(--text-muted);font-size:10px;cursor:pointer}
+.btn-top:hover{border-color:var(--blue);color:var(--text)}
+.main{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%);border:1px solid var(--border);border-radius:16px;padding:28px 32px;margin-bottom:18px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-60px;right:-60px;width:250px;height:250px;border-radius:50%;background:radial-gradient(circle,rgba(26,110,245,.18) 0%,transparent 70%);pointer-events:none}
+.hero-eyebrow{font-size:10px;color:var(--text-muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.hero-pct{font-family:var(--mono);font-size:56px;font-weight:300;line-height:1;margin-bottom:6px}
+.hero-pct.pos{color:var(--green)}.hero-pct.neg{color:var(--danger)}.hero-pct.zero{color:var(--gold)}
+.hero-desc{font-size:11px;color:var(--text-muted);margin-bottom:22px}
+.hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.hs-label{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.hs-val{font-family:var(--mono);font-size:20px;color:#fff;line-height:1.1}
+.hs-val.pos{color:var(--green)}.hs-val.neg{color:var(--danger)}
+.hs-sub{font-size:10px;color:var(--text-muted);margin-top:2px}
+
+/* MEP INLINE */
+.mep-inline{background:var(--gold-dim);border:1px solid rgba(240,180,41,.18);border-radius:var(--r2);padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mep-inline-label{font-size:12px;color:var(--gold);font-weight:500;flex:1;min-width:140px}
+.mep-inline-label span{display:block;font-size:10px;font-weight:400;color:rgba(240,180,41,.55);margin-top:1px}
+.mep-inline-ctrl{display:flex;align-items:center;gap:8px}
+.mep-inline-ctrl input{background:rgba(0,0,0,.35);border:1px solid rgba(240,180,41,.3);border-radius:var(--r);padding:7px 12px;color:var(--gold);font-family:var(--mono);font-size:15px;width:130px;text-align:center}
+.mep-inline-ctrl input:focus{outline:none;border-color:var(--gold)}
+.btn-recalc{background:var(--gold);border:none;border-radius:var(--r);padding:7px 14px;color:#000;font-size:11px;font-weight:700;cursor:pointer}
+.btn-recalc:hover{opacity:.9}
+.btn-upd-mep{background:transparent;border:1px solid rgba(240,180,41,.3);border-radius:var(--r);padding:7px 10px;color:rgba(240,180,41,.7);font-size:10px;cursor:pointer}
+.btn-upd-mep:hover{border-color:var(--gold);color:var(--gold)}
+
+/* SECTION */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:16px;overflow:hidden}
+.section-hdr{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.section-title{font-size:13px;font-weight:600;color:#fff}
+.section-badge{font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-family:var(--mono)}
+.section-sub{font-size:10px;color:var(--text-muted);margin-top:2px}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:8px 14px;text-align:left;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);background:rgba(0,0,0,.2);white-space:nowrap}
+.tbl th.r{text-align:right}
+.tbl td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.03);font-size:12px;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.015)}
+.r{text-align:right;font-family:var(--mono)}
+.muted{color:var(--text-muted)}
+.c-green{color:var(--green)}.c-red{color:var(--danger)}.c-gold{color:var(--gold)}.c-white{color:#fff}
+.mono{font-family:var(--mono)}
+.cat-row td{background:rgba(26,110,245,.05)!important;color:var(--text-muted);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:5px 14px!important;border-bottom:none!important;border-top:1px solid rgba(26,110,245,.1)!important}
+.cat-row:first-child td{border-top:none!important}
+.total-row td{background:var(--surface2)!important;border-top:1px solid var(--border)!important;font-weight:600}
+.liq-row td{background:rgba(240,180,41,.03)!important}
+.ticker{display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:10px;font-family:var(--mono);color:var(--blue-light);font-weight:700;margin-right:6px;white-space:nowrap}
+.ast-sub{font-size:9px;color:var(--text-muted);margin-top:2px}
+.pbar{display:inline-block;width:50px;height:3px;background:rgba(255,255,255,.05);border-radius:2px;vertical-align:middle;overflow:hidden;margin-left:5px}
+.pbar-fill{height:100%;border-radius:2px}
+.no-cost{color:var(--text-dim);font-size:10px;font-style:italic}
+.ppp-edit{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:11px;padding:0 3px;vertical-align:middle;opacity:.5;transition:opacity .15s}
+.ppp-edit:hover{opacity:1;color:var(--gold)}
+/* AUDIT ROWS */
+.tbl tr.pos-row{cursor:pointer;transition:background .12s}
+.tbl tr.pos-row:hover td{background:rgba(26,110,245,.06)}
+.tbl tr.pos-row.open td{background:rgba(26,110,245,.09)}
+.audit-row td{padding:0!important;border-bottom:1px solid var(--border2)}
+.audit-panel{background:var(--bg);border-top:1px solid var(--border2);padding:14px 18px 14px 52px}
+.audit-title{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--blue-light);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.audit-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.audit-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.audit-tbl th{font-size:9px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:.07em;padding:4px 10px;text-align:left;border-bottom:1px solid var(--border)}
+.audit-tbl td{padding:5px 10px;border-bottom:1px solid rgba(28,45,80,.5);color:var(--text-muted);font-family:var(--mono)}
+.audit-tbl td.hl{color:var(--text)}
+.audit-tbl tr:last-child td{border-bottom:none}
+.audit-tbl .src-badge{font-size:8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text-dim);margin-left:4px}
+.audit-tbl .src-badge.ok{border-color:rgba(46,204,138,.3);color:var(--green)}
+.audit-tbl .src-badge.est{border-color:rgba(240,180,41,.3);color:var(--gold)}
+.audit-note{font-size:10px;color:var(--text-dim);margin-top:10px;line-height:1.6}
+.expand-icon{display:inline-block;font-size:9px;color:var(--text-dim);margin-left:6px;transition:transform .15s}
+.open .expand-icon{transform:rotate(90deg)}
+
+/* INFLOW MEP EDIT */
+.mep-edit-inp{background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.25);border-radius:5px;padding:4px 8px;color:var(--gold);font-family:var(--mono);font-size:12px;width:90px;text-align:right}
+.mep-edit-inp:focus{outline:none;border-color:var(--gold)}
+.mep-src-lbl{font-size:9px;color:var(--text-dim);display:block;margin-top:2px}
+.mep-src-lbl.verified{color:rgba(46,204,138,.5)}
+
+.warn-box{background:rgba(240,180,41,.06);border:1px solid rgba(240,180,41,.2);border-radius:var(--r);padding:10px 14px;margin:12px 16px 0;font-size:11px;color:var(--gold);display:none}
+.warn-box strong{color:var(--text)}
+.flow-total{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--surface2);border-top:1px solid var(--border)}
+.flow-total span{font-size:11px;color:var(--text-muted)}
+.flow-total strong{font-family:var(--mono);font-size:15px;color:#fff}
+.nota{background:var(--surface2);border-left:3px solid rgba(26,110,245,.4);padding:12px 16px;border-radius:0 var(--r) var(--r) 0;font-size:11px;color:var(--text-muted);line-height:1.65;margin-top:14px}
+.nota strong{color:var(--text)}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 16px;font-size:11px;color:var(--text);z-index:300;display:none;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+#toast.show{display:block}
+
+@media print{
+  @page{margin:18mm 16mm;size:A4}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+
+  /* Hide interactive controls */
+  .topbar .btn-top,.mep-inline,.mep-badge,.ppp-edit,
+  .btn-mep-refresh,.nota,#toast{display:none!important}
+
+  body{background:#080d1a!important;color:#e8edf8!important;font-size:11px}
+
+  /* Topbar becomes print header */
+  .topbar{position:relative!important;background:#0d1526!important;
+    border-bottom:2px solid #1a6ef5!important;
+    padding:10px 20px!important;margin-bottom:14px}
+  .topbar-sub{color:#3d8bff!important}
+  .topbar-name{color:#fff!important}
+  .chip{background:#111d36!important;border-color:#1c2d50!important;color:#607090!important}
+  .chip strong{color:#e8edf8!important}
+
+  /* Print-only date stamp in topbar */
+  .topbar::after{
+    content:'Generado el ' attr(data-print-date);
+    font-size:9px;color:#607090;position:absolute;right:20px;top:50%;transform:translateY(-50%)
+  }
+
+  /* Hero */
+  .hero{background:#0d1526!important;border:1px solid #1c2d50!important;
+    border-left:4px solid #1a6ef5!important;
+    break-inside:avoid;margin-bottom:12px;padding:20px 24px!important}
+  .hero::before{display:none}
+  .hero-pct.pos{color:#2ecc8a!important}
+  .hero-pct.neg{color:#e05252!important}
+  .hero-pct.zero{color:#f0b429!important}
+  .hs-label{color:#607090!important}
+  .hs-val{color:#fff!important}
+  .hero-desc{color:#607090!important}
+
+  /* Sections */
+  .section{background:#0d1526!important;border:1px solid #1c2d50!important;
+    break-inside:avoid;margin-bottom:10px;border-radius:8px}
+  .section-hdr{border-bottom:1px solid #1c2d50!important;padding:10px 16px!important}
+  .section-title{color:#fff!important}
+  .section-sub{color:#607090!important}
+  .section-badge{color:#3d8bff!important}
+
+  /* Table */
+  .tbl{width:100%}
+  .tbl th{background:#111d36!important;color:#607090!important;
+    border-bottom:1px solid #243660!important;font-size:9px;padding:6px 8px!important}
+  .tbl td{border-bottom:1px solid #1c2d50!important;padding:6px 8px!important;color:#e8edf8!important}
+  .tbl tr.cat-row td{background:#111d36!important;color:#3d8bff!important;
+    font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .ticker{background:#162040!important;color:#3d8bff!important;border:1px solid #1c2d50!important}
+  .ast-sub{color:#607090!important}
+  .muted{color:#607090!important}
+  .no-cost{color:#2a3a60!important}
+
+  /* P&L colors — keep green/red on dark */
+  .c-green,.pos-val{color:#2ecc8a!important}
+  .c-red,.neg-val{color:#e05252!important}
+  .c-white{color:#fff!important}
+  .c-gold{color:#f0b429!important}
+  .mono{font-family:'Courier New',monospace}
+
+  /* Footer totals row */
+  .tbl-footer td{background:#111d36!important;color:#fff!important;
+    font-weight:600;border-top:1.5px solid #1a6ef5!important}
+
+  /* Inflows table */
+  .tag{font-size:8px!important}
+
+  /* Page break hints */
+  .section{page-break-inside:avoid}
+
+  /* Print watermark / footer */
+  .main::after{
+    content:'InTrade Capital · Monitor de Cartera · Uso interno y para presentación a cliente';
+    display:block;text-align:center;font-size:8px;color:#2a3a60;
+    margin-top:24px;padding-top:12px;border-top:1px solid #1c2d50
+  }
+}
+@media(max-width:700px){
+  .hero-pct{font-size:38px}
+  .hero-stats{grid-template-columns:1fr 1fr}
+  .tbl td,.tbl th{padding:7px 9px;font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ UPLOAD ══ -->
+<div id="upload-screen">
+  <div class="upload-hero">
+    <div class="upload-logo">🐂</div>
+    <h1>InTrade Capital</h1>
+    <p>Cargá los archivos de AdCap para generar el monitor de cartera en dólares de cualquier cliente.</p>
+  </div>
+
+  <!-- Valuación Final -->
+  <div class="upload-step">
+    <div class="step-hdr">
+      <div class="step-num">1</div>
+      <div><div class="step-title">Valuación Final (.xls)</div><div class="step-hint">AdCap → Reportes → Posición Consolidada → Valuación Final → Exportar XLS</div></div>
+    </div>
+    <div class="drop-zone" id="dz-val">
+      <input type="file" id="fi-val" accept=".xls,.xlsx" style="display:none" onchange="handleFile(this,'val')">
+      <div class="drop-txt">📊 Hacé clic o arrastrá Valuación Final.xls</div>
+      <div class="drop-name" id="dn-val"></div>
+    </div>
+    <div class="client-field" style="margin-top:12px">
+      <label>Cliente</label>
+      <input type="text" id="inp-client" placeholder="Ej: Juan García">
+    </div>
+  </div>
+
+  <!-- Movimientos -->
+  <div class="upload-step">
+    <div class="step-hdr">
+      <div class="step-num">2</div>
+      <div><div class="step-title">Movimientos (.xls)</div><div class="step-hint">Reportes → Movimientos → rango completo desde inicio → Exportar XLS</div></div>
+    </div>
+    <div class="drop-zone" id="dz-mov">
+      <input type="file" id="fi-mov" accept=".xls,.xlsx" style="display:none" onchange="handleFile(this,'mov')">
+      <div class="drop-txt">📄 Hacé clic o arrastrá Movimientos.xls</div>
+      <div class="drop-name" id="dn-mov"></div>
+    </div>
+  </div>
+
+  <!-- Renta Financiera (opcional) -->
+  <div class="upload-step optional">
+    <div class="step-hdr">
+      <div class="step-num opt">3</div>
+      <div>
+        <div class="step-title">Renta Financiera (.xls) <span class="opt-badge">Opcional</span></div>
+        <div class="step-hint">Completá precios de compra para instrumentos sin PPP en la Valuación · Reportes → Renta Financiera → rango completo → Exportar XLS</div>
+      </div>
+    </div>
+    <div class="drop-zone" id="dz-rf">
+      <input type="file" id="fi-rf" accept=".xls,.xlsx" style="display:none" onchange="handleFile(this,'rf')">
+      <div class="drop-txt">📋 Hacé clic o arrastrá Renta Financiera.xls (opcional)</div>
+      <div class="drop-name" id="dn-rf"></div>
+    </div>
+  </div>
+
+  <!-- MEP -->
+  <div class="upload-step">
+    <div class="step-hdr">
+      <div class="step-num">4</div>
+      <div><div class="step-title">Dólar MEP actual</div><div class="step-hint">Se carga automáticamente desde DolarAPI</div></div>
+    </div>
+    <div class="mep-card">
+      <div class="mep-card-hdr">
+        <div class="mep-card-title">Tipo de Cambio MEP (ARS/USD)</div>
+        <div class="mep-status"><div class="mep-dot loading" id="upl-mep-dot"></div><span id="upl-mep-txt">Cargando...</span></div>
+      </div>
+      <div class="mep-grid">
+        <div class="mep-field"><label>Compra (ARS)</label><input type="number" id="inp-mep-c" placeholder="—" step="0.01" oninput="onMepManual()"></div>
+        <div class="mep-field"><label>Venta (ARS)</label><input type="number" id="inp-mep-v" placeholder="—" step="0.01" oninput="onMepManual()"></div>
+      </div>
+      <button class="btn-mep-refresh" id="btn-mep-ref" onclick="fetchCurrentMep()" disabled>↻ Actualizar desde DolarAPI</button>
+    </div>
+  </div>
+
+  <button class="btn-gen" id="btn-gen" onclick="generate()" disabled>Generar monitor de cartera</button>
+  <div class="upload-status" id="upload-status">Cargá la Valuación y Movimientos para continuar.</div>
+</div>
+
+<!-- ══ LOADING ══ -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="loading-txt" id="loading-txt">Procesando...</div>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="dashboard">
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-logo">🐂</div>
+      <div><div class="topbar-name">InTrade Capital</div><div class="topbar-sub">Monitor de Cartera</div></div>
+    </div>
+    <div class="topbar-right">
+      <div class="chip"><strong id="tb-client">—</strong></div>
+      <div class="chip">Al <strong id="tb-date">—</strong></div>
+      <div class="mep-badge" onclick="focusMep()">
+        <div class="mep-badge-dot stale" id="dash-mep-dot"></div>
+        <div class="mep-badge-txt" id="dash-mep-txt">MEP —</div>
+      </div>
+      <button class="btn-top" onclick="resetDash()">← Nueva carga</button>
+      <button class="btn-top" onclick="buildPrintReport()" style="border-color:rgba(26,110,245,.4);color:var(--blue-light)">⎙ Imprimir PDF</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- HERO -->
+    <div class="hero">
+      <div class="hero-eyebrow">Rentabilidad total de la cartera · En dólares MEP</div>
+      <div class="hero-pct zero" id="h-pct">—</div>
+      <div class="hero-desc" id="h-desc">—</div>
+      <div class="hero-stats">
+        <div><div class="hs-label">Capital Invertido (USD)</div><div class="hs-val" id="h-inv">—</div><div class="hs-sub" id="h-inv-sub">—</div></div>
+        <div><div class="hs-label">Valor Actual (USD)</div><div class="hs-val" id="h-cur">—</div><div class="hs-sub" id="h-cur-sub">—</div></div>
+        <div><div class="hs-label">Ganancia / Pérdida (USD)</div><div class="hs-val" id="h-gp">—</div><div class="hs-sub" id="h-gp-sub">—</div></div>
+      </div>
+    </div>
+
+    <!-- MEP EDITOR -->
+    <div class="mep-inline" id="mep-inline">
+      <div class="mep-inline-label">MEP actual (ARS/USD)<span id="dash-mep-src">—</span></div>
+      <div class="mep-inline-ctrl">
+        <input type="number" id="dash-mep-inp" step="0.01" placeholder="—">
+        <button class="btn-recalc" onclick="applyDashMep()">Recalcular</button>
+        <button class="btn-upd-mep" onclick="refreshDashMep()">↻ Actualizar</button>
+      </div>
+    </div>
+
+    <!-- POSICIÓN ACTUAL -->
+    <div class="section">
+      <div class="section-hdr">
+        <div>
+          <div class="section-title">Posición Actual · Activos en Cartera</div>
+          <div class="section-sub">Precio de compra promedio vs. valor actual en USD al MEP de hoy</div>
+        </div>
+        <div class="section-badge" id="pos-badge">—</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead><tr>
+            <th>Instrumento</th>
+            <th class="r">Cantidad</th>
+            <th class="r">P. Compra (USD)</th>
+            <th class="r">P. Actual (USD)</th>
+            <th class="r">Invertido (USD)</th>
+            <th class="r">Valor Actual (USD)</th>
+            <th class="r">G/P (USD)</th>
+            <th class="r">Rentabilidad</th>
+          </tr></thead>
+          <tbody id="pos-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- INGRESOS DE CAPITAL -->
+    <div class="section">
+      <div class="section-hdr">
+        <div>
+          <div class="section-title">Ingresos de Capital al Período</div>
+          <div class="section-sub">Depósitos convertidos a USD al MEP del día · Los depósitos en ARS son editables</div>
+        </div>
+        <div class="section-badge" id="inflow-badge">—</div>
+      </div>
+      <div class="warn-box" id="mep-warn">⚠ <strong>Verificá los MEP históricos.</strong> Si el dato automático no coincide con el real, editá el campo directamente — el total se recalcula al instante.</div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead><tr>
+            <th>Fecha</th><th>Concepto</th>
+            <th class="r">Monto Original</th>
+            <th class="r">MEP del Día</th>
+            <th class="r">Equivalente USD</th>
+          </tr></thead>
+          <tbody id="inflow-tbody"></tbody>
+        </table>
+      </div>
+      <div class="flow-total"><span>Total capital invertido en USD</span><strong id="inflow-total">—</strong></div>
+    </div>
+
+    <div class="nota">
+      <strong>Capital invertido:</strong> suma de depósitos en USD + depósitos en ARS ÷ MEP del día (ArgentinaDatos / Ambito). <strong>Valor actual:</strong> posiciones de Posición de Títulos ÷ MEP actual, más saldos de liquidez del estado de cuenta. <strong>FCIs:</strong> el precio de compra surge del Valor Cuotaparte al momento de la suscripción. Posiciones con "saldo anterior" al período no tienen costo base en este reporte.
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+//  STATE & CONSTANTS
+// ═══════════════════════════════════════
+var bufRF=null, bufMov=null, bufCta=null, bufVal=null;
+var STATE={
+  mepMid:0, mepFresh:false, mepSource:'',
+  historicalMep:{}, mepFromBoletos:{},
+  positions:[], cashItems:[], inflows:[],
+  client:'', lastDate:'',
+};
+var MEP_FALLBACK={
+  '2023-01':370,'2023-02':376,'2023-03':390,'2023-04':413,'2023-05':460,'2023-06':500,
+  '2023-07':525,'2023-08':560,'2023-09':680,'2023-10':780,'2023-11':840,'2023-12':830,
+  '2024-01':860,'2024-02':980,'2024-03':1020,'2024-04':1060,'2024-05':1120,'2024-06':1270,
+  '2024-07':1290,'2024-08':1300,'2024-09':1240,'2024-10':1195,'2024-11':1090,'2024-12':1060,
+  '2025-01':1100,'2025-02':1105,'2025-03':1110,'2025-04':1115,'2025-05':1120,'2025-06':1130,
+  '2025-07':1140,'2025-08':1155,'2025-09':1165,'2025-10':1180,'2025-11':1195,'2025-12':1215,
+  // 2026 — valores reales validados
+  '2026-01':1405,'2026-02':1410,'2026-03':1415,
+  '2026-04':1424,'2026-05':1440,'2026-06':1470,'2026-07':1490,
+};
+
+// ═══════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════
+function parseNum(s){
+  if(typeof s==='number') return s;
+  if(!s) return 0;
+  s=String(s).trim().replace(/\s/g,'').replace(/^\$/,'').replace(/^USD\s*/i,'');
+  if(s.indexOf(',')>s.indexOf('.')&&s.indexOf(',')!==-1) s=s.replace(/\./g,'').replace(',','.');
+  return parseFloat(s)||0;
+}
+function normalizeDate(s){
+  if(!s) return '';
+  s=String(s).trim();
+  var p=s.split('/');
+  if(p.length===3&&p[2].length===4) return p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return '';
+}
+function isDateStr(s){ return /^\d{2}\/\d{2}\/\d{4}$/.test(String(s||'').trim()); }
+function getMepForDate(fechaStr){
+  var iso=normalizeDate(fechaStr);
+  if(!iso) return STATE.mepMid||1470;
+  if(STATE.mepFromBoletos[iso]) return STATE.mepFromBoletos[iso];
+  if(STATE.historicalMep[iso]) return STATE.historicalMep[iso];
+  var d=new Date(iso);
+  for(var i=1;i<=7;i++){
+    d.setDate(d.getDate()-1);
+    var k=d.toISOString().slice(0,10);
+    if(STATE.mepFromBoletos[k]) return STATE.mepFromBoletos[k];
+    if(STATE.historicalMep[k]) return STATE.historicalMep[k];
+  }
+  return MEP_FALLBACK[iso.slice(0,7)]||STATE.mepMid||1470;
+}
+function fmt(n,d){ d=d!==undefined?d:2; return 'USD '+Math.abs(n).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function fmtARS(n){ return '$'+Math.abs(n).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function fmtPct(n){ return (n>=0?'+':'')+n.toFixed(2)+'%'; }
+function fmtN(n,d){ d=d!==undefined?d:2; return Math.abs(n).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function sign(n){ return n>0?'pos':n<0?'neg':'zero'; }
+function clamp(x,lo,hi){ return Math.max(lo,Math.min(hi,x)); }
+function pnlHtml(usd){
+  var c=usd>0?'c-green':usd<0?'c-red':'muted';
+  return '<span class="mono '+c+'">'+(usd>=0?'+':'-')+fmt(Math.abs(usd))+'</span>';
+}
+function pctHtml(pct){
+  var c=pct>0?'c-green':pct<0?'c-red':'muted';
+  var w=clamp(Math.abs(pct)/60*100,2,100);
+  var bar='<span class="pbar"><span class="pbar-fill" style="width:'+w+'%;background:'+(pct>0?'var(--green)':'var(--danger)')+'"></span></span>';
+  return '<span class="mono '+c+'">'+fmtPct(pct)+'</span>'+bar;
+}
+function showToast(msg,ms){
+  var el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(function(){el.classList.remove('show');},ms||3200);
+}
+
+// ═══════════════════════════════════════
+//  FILE HANDLING
+// ═══════════════════════════════════════
+['val','mov','rf'].forEach(function(id){
+  var dz=document.getElementById('dz-'+id);
+  if(!dz) return;
+  dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('over')});
+  dz.addEventListener('dragleave',function(){dz.classList.remove('over')});
+  dz.addEventListener('drop',function(e){
+    e.preventDefault();dz.classList.remove('over');
+    if(e.dataTransfer.files.length) readFile(e.dataTransfer.files[0],id);
+  });
+  dz.addEventListener('click',function(){document.getElementById('fi-'+id).click()});
+});
+function handleFile(input,id){ if(input.files[0]) readFile(input.files[0],id); }
+function readFile(file,id){
+  var reader=new FileReader();
+  reader.onload=function(e){
+    if(id==='val') bufVal=e.target.result;
+    else if(id==='rf') bufRF=e.target.result;
+    else if(id==='mov') bufMov=e.target.result;
+    else bufCta=e.target.result;
+    var dn=document.getElementById('dn-'+id);
+    dn.textContent='✓ '+file.name; dn.style.display='block';
+    var dz=document.getElementById('dz-'+id);
+    dz.classList.remove('over');
+    dz.classList.add(id==='cta'||id==='rf'?'opt-loaded':'loaded');
+    // Auto-detect client name from movimientos filename
+    if(id==='mov'){
+      var name=file.name.replace(/\.(xls|xlsx)$/i,'')
+        .replace(/movimientos/i,'').replace(/MOVIMIENTOS/,'')
+        .replace(/_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}/,'')
+        .replace(/[\d_\-]+/g,' ').replace(/\s+/g,' ').trim();
+      if(name&&!document.getElementById('inp-client').value)
+        document.getElementById('inp-client').value=name;
+    }
+    checkReady();
+  };
+  reader.readAsArrayBuffer(file);
+}
+function checkReady(){
+  var ok=!!bufVal&&!!bufMov;
+  document.getElementById('btn-gen').disabled=!ok;
+  document.getElementById('upload-status').textContent=ok
+    ?'✓ Listo. Completá el MEP actual y generá el monitor.'+(bufCta?' (Cuenta Corriente incluida)':'')+(bufRF?' (Renta Financiera incluida)':'')
+    :'Cargá la Valuación y Movimientos para continuar.';
+}
+
+// ═══════════════════════════════════════
+//  MEP APIs
+// ═══════════════════════════════════════
+async function fetchCurrentMep(){
+  setMepDot('loading','Actualizando...');
+  document.getElementById('btn-mep-ref').disabled=true;
+  try{
+    var r=await fetch('https://dolarapi.com/v1/dolares/bolsa');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var d=await r.json();
+    var c=d.compra||0,v=d.venta||0,mid=Math.round(((c+v)/2)*100)/100;
+    STATE.mepMid=c||mid; STATE.mepFresh=true;
+    STATE.mepSource='DolarAPI';
+    document.getElementById('inp-mep-c').value=c.toFixed(2);
+    document.getElementById('inp-mep-v').value=v.toFixed(2);
+    ['inp-mep-c','inp-mep-v'].forEach(function(x){document.getElementById(x).classList.add('fresh')});
+    setMepDot('ok','$'+Math.round(mid).toLocaleString('es-AR')+' · C:$'+c+' / V:$'+v);
+  }catch(e){
+    setMepDot('error','Sin conexión · ingresalo manualmente');
+    if(!STATE.mepMid) STATE.mepMid=MEP_FALLBACK['2026-06']||1470;
+  }
+  document.getElementById('btn-mep-ref').disabled=false;
+}
+function setMepDot(st,txt){
+  document.getElementById('upl-mep-dot').className='mep-dot '+st;
+  document.getElementById('upl-mep-txt').textContent=txt;
+}
+function onMepManual(){
+  var c=parseFloat(document.getElementById('inp-mep-c').value)||0;
+  var v=parseFloat(document.getElementById('inp-mep-v').value)||0;
+  STATE.mepMid=c&&v?(c+v)/2:(c||v);
+  STATE.mepFresh=false; STATE.mepSource='Ingresado manualmente';
+  setMepDot('','Editado manualmente');
+  ['inp-mep-c','inp-mep-v'].forEach(function(x){document.getElementById(x).classList.remove('fresh')});
+}
+async function fetchHistoricalMep(){
+  // ArgentinaDatos — daily data, open CORS
+  try{
+    var r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/bolsa',
+      {signal:AbortSignal.timeout(7000)});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var data=await r.json();
+    var map={};
+    data.forEach(function(d){
+      if(d.fecha&&(d.compra||d.venta)){
+        map[d.fecha]=d.compra&&d.venta?(d.compra+d.venta)/2:(d.compra||d.venta);
+      }
+    });
+    if(Object.keys(map).length>100){ STATE.historicalMep=map; return true; }
+  }catch(e){ console.warn('ArgentinaDatos:',e.message); }
+  // Ambito fallback
+  try{
+    var r=await fetch('https://mercados.ambito.com/dolarrava/mep/grafico/3-anios/datos',
+      {signal:AbortSignal.timeout(7000)});
+    if(!r.ok) throw new Error();
+    var data=await r.json();
+    var map={};
+    for(var i=1;i<data.length;i++){
+      var row=data[i]; if(!row||row.length<2) continue;
+      var iso=normalizeDate(String(row[0]));
+      var val=parseFloat(String(row[1]).replace(',','.'));
+      if(iso&&val>0) map[iso]=val;
+    }
+    if(Object.keys(map).length>50){ STATE.historicalMep=map; return true; }
+  }catch(e){ console.warn('Ambito:',e.message); }
+  return false;
+}
+
+// ═══════════════════════════════════════
+//  PARSERS
+// ═══════════════════════════════════════
+
+// ── Valuación Final (AdCap Posición Consolidada) ──
+function parseValuacion(buffer){
+  var wb=XLSX.read(buffer,{type:'array'});
+  var sn=wb.SheetNames[0];
+  var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',cellDates:true});
+
+  // Client name not available in AdCap Valuación — always use manual input
+  var clientHint='';
+
+  var positions=[];
+  var cashItems=[];
+  var lastDate='';
+  var totalARS=0, totalUSD=0;
+  var currentCategory='';
+
+  var CASH_CATEGORIES=['dolar 7000','dolar mep','dolar mep (local)','pesos'];
+  var isCashCategory=false;
+
+  rows.forEach(function(r){
+    var c0=String(r[0]||'').trim();
+    var c0l=c0.toLowerCase();
+
+    // Detect summary totals
+    if(c0l==='pesos'&&typeof r[1]==='number'&&!c0l.includes('/')){
+      // could be a summary row — handled below as category check too
+    }
+
+    var hasSlash=c0.indexOf(' / ')!==-1;
+    var col3val=parseNum(r[3]);
+    var col1val=parseNum(r[1]);
+    // A position row has " / " AND a non-zero quantity in col1 or col3
+    var isPositionRow=hasSlash&&(col3val>0||col1val>0);
+    // A category header with "/" (e.g. "Cedears / Pesos", "Fondos / Dolar MEP (Local)")
+    // has "/" but zero/blank quantities
+    var isSlashCategory=hasSlash&&!isPositionRow;
+
+    if(isSlashCategory){
+      currentCategory=c0;
+      isCashCategory=false;
+      return;
+    }
+
+    if(!isPositionRow&&c0&&!hasSlash){
+      // If we're inside a cash category, this non-slash, non-position row is the cash data row
+      // (e.g. "USD 7000 - Dolar 7000", "USD D - Dolar MEP (Local)", "$ - Pesos")
+      if(isCashCategory){
+        var catL=currentCategory.toLowerCase();
+        var tipo=catL.includes('7000')?'USD_CABLE':catL.includes('mep')||catL.includes('dolar')?'USD_MEP':'ARS';
+        // Quantity is in Tenencia cols (r[3] or r[1]) — for cash, 1 unit = 1 USD (or 1 ARS)
+        var qty=parseNum(r[3])||parseNum(r[1]);
+        // For ARS cash, amount is in the importe col
+        var arsAmt=parseNum(r[6])||parseNum(r[12]);
+        var saldo=tipo==='ARS'?arsAmt:qty;
+        if(saldo!==0) cashItems.push({cuenta:currentCategory,saldo:saldo,tipo:tipo});
+        isCashCategory=false;
+        return;
+      }
+      // Cash category headers: "Dolar 7000", "Dolar MEP (Local)", "Pesos"
+      var isCash=CASH_CATEGORIES.some(function(h){return c0l===h||c0l.startsWith(h);});
+      if(isCash){
+        currentCategory=c0;
+        isCashCategory=true;
+      } else if(c0l!==''&&!/^\d/.test(c0)&&c0l!=='total'&&!c0l.startsWith('importe')&&!c0l.startsWith('moneda')){
+        currentCategory=c0;
+        isCashCategory=false;
+      }
+      return;
+    }
+
+    if(isPositionRow){
+      // Parse position row
+      var denom=c0; // full "TICKER - CODE / FULL NAME" or "CODE / FULL NAME"
+      var slashIdx=denom.indexOf(' / ');
+      var beforeSlash=denom.slice(0,slashIdx).trim();
+      var instrumento=denom.slice(slashIdx+3).trim();
+
+      // Extract ticker: text before " - " in beforeSlash
+      var dashIdx=beforeSlash.indexOf(' - ');
+      var ticker=dashIdx!==-1?beforeSlash.slice(0,dashIdx).trim():beforeSlash;
+      var codigo=dashIdx!==-1?beforeSlash.slice(dashIdx+3).trim():beforeSlash;
+
+      var cantidad=parseNum(r[3])||parseNum(r[1]);
+      var ppp=parseNum(r[4]);
+      var cotizacionNativa=parseNum(r[5]);
+      var importeNativo=parseNum(r[6]);
+      var cotizacionARS=parseNum(r[11]);
+      var importeARS=parseNum(r[12]);
+
+      // Detect date from col 10
+      var col10=r[10];
+      if(!lastDate){
+        var col10s=String(col10||'').trim();
+        if(isDateStr(col10s)) lastDate=col10s;
+        else if(col10 instanceof Date){
+          var dd=String(col10.getDate()).padStart(2,'0');
+          var mm=String(col10.getMonth()+1).padStart(2,'0');
+          lastDate=dd+'/'+mm+'/'+col10.getFullYear();
+        }
+      }
+
+      // isUSD: detect from category name ("Dolar MEP" or "Obligaciones ... Dolar MEP")
+      var catL2=currentCategory.toLowerCase();
+      var isUSD=catL2.includes('dolar')||catL2.includes('mep');
+
+      // importeNativo (col6) = total value in native currency (ARS for CEDEARs/ETFs/FCI-pesos, USD for ONs/FCI-dolar)
+      positions.push({
+        instrumento:instrumento, ticker:ticker, codigo:codigo,
+        categoria:currentCategory, cantidad:cantidad,
+        ppp:ppp, cotizacionNativa:cotizacionNativa,
+        importeNativo:importeNativo, isUSD:isUSD,
+        valorARS:isUSD?0:importeNativo,
+        valorUSD:isUSD?importeNativo:0,
+      });
+    } else if(isCashCategory){
+      // Cash row: single data row under a cash category header
+      var saldo=parseNum(r[6])||parseNum(r[12]);
+      if(!saldo) saldo=parseNum(r[1])||parseNum(r[3]);
+      var catL=currentCategory.toLowerCase();
+      var tipo=catL.includes('7000')?'USD_CABLE':catL.includes('mep')||catL.includes('dolar')?'USD_MEP':'ARS';
+      if(saldo!==0){
+        cashItems.push({cuenta:currentCategory,saldo:tipo==='ARS'?saldo:parseNum(r[6])||parseNum(r[1]),tipo:tipo});
+      }
+      isCashCategory=false; // consume — next row is a new section
+    }
+  });
+
+  // Detect totals from summary rows at top (Moneda / Importe Total)
+  rows.slice(0,10).forEach(function(r){
+    var c0l=String(r[0]||'').trim().toLowerCase();
+    if(c0l==='pesos'||c0l.includes('peso')) totalARS=parseNum(r[1])||totalARS;
+    if(c0l.includes('dolar')||c0l==='usd') totalUSD=parseNum(r[1])||totalUSD;
+  });
+
+  return {positions:positions,cashItems:cashItems,clientHint:clientHint,lastDate:lastDate,totalARS:totalARS,totalUSD:totalUSD};
+}
+
+// ── Renta Financiera ──
+function parseRentaFinanciera(buffer){
+  var wb=XLSX.read(buffer,{type:'array'});
+  var result={positions:[],boletosMap:{},fciData:{}};
+
+  // Posición de Títulos
+  var sn=wb.SheetNames.find(function(s){
+    var sl=s.toLowerCase(); return sl.includes('sici')||sl.includes('tulo')||sl.includes('posici');
+  });
+  if(sn){
+    var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:''});
+    rows.forEach(function(r){
+      var inst=String(r['Instrumento']||'').trim();
+      var cod=String(r['Código']||r['Codigo']||'').trim();
+      var ticker=String(r['Ticker']||'').trim();
+      var cant=parseNum(r['Cantidad']);
+      var imp=parseNum(r['Importe']);
+      var mon=String(r['Moneda']||'').trim().toLowerCase();
+      // PPP = Precio Promedio Ponderado (weighted avg buy price from AdCap)
+      var ppp=parseNum(r['PPP']||r['P.P.P']||r['Precio Promedio Ponderado']||r['Precio Promedio']||0);
+      if(!inst||inst.toLowerCase().includes('disponible')||(!imp&&!cant)) return;
+      var isARS=mon===''||mon.includes('peso')||mon==='ars'||mon==='$';
+      result.positions.push({
+        instrumento:inst, ticker:ticker||cod||inst.slice(0,8), codigo:cod,
+        cantidad:cant, valorARS:isARS?imp:0, valorUSD:!isARS?imp:0, moneda:mon, ppp:ppp,
+      });
+    });
+  }
+
+  // Boletos — MEP map + cost basis
+  var bs=wb.SheetNames.find(function(s){return s.toLowerCase().includes('oleto');});
+  if(bs){
+    var rows=XLSX.utils.sheet_to_json(wb.Sheets[bs],{defval:''});
+    rows.forEach(function(r){
+      var boleto=r['Nro. Boleto']||r['Nro Boleto']; if(!boleto) return;
+      var moneda=String(r['Moneda']||'').trim();
+      var tipo=String(r['Tipo Operación']||r['Tipo Operacion']||'').trim();
+      var tc=parseNum(r['Tipo Cambio']);
+      var neto=parseNum(r['Neto']);
+      var cant=parseNum(r['Cantidad']);
+      var precio=parseNum(r['Precio']);
+      var inst=String(r['Instrumento']||'').trim();
+      var cod=String(r['Cod.Instrum']||r['Cod. Instrum']||'').trim();
+      var liq=String(r['Liquidación']||r['Liquidacion']||'').trim();
+      var conc=String(r['Concertación']||r['Concertacion']||'').trim();
+      var fecha=isDateStr(conc)?conc:liq;
+      var isUSD=moneda.toLowerCase().includes('dolar')||moneda==='D'||moneda.includes('USD');
+      var isCompra=tipo.toLowerCase().includes('compra')||tipo.toLowerCase().includes('icitaci')||tipo.toLowerCase().includes('suscri');
+      // Extract MEP from USD operations
+      if(isUSD&&tc>100){
+        var iso=normalizeDate(isDateStr(liq)?liq:conc);
+        if(iso&&!STATE.mepFromBoletos[iso]) STATE.mepFromBoletos[iso]=tc;
+      }
+      if(isCompra){
+        var key=cod||normalizeInstName(inst);
+        if(!result.boletosMap[key]) result.boletosMap[key]={totalUSD:0,qty:0,instrumento:inst,ops:[]};
+        var mepUsed=isUSD?(tc>100?tc:STATE.mepMid):getMepForDate(fecha);
+        var usd=isUSD?Math.abs(neto):Math.abs(neto)/mepUsed;
+        result.boletosMap[key].totalUSD+=usd;
+        result.boletosMap[key].qty+=Math.abs(cant);
+        var mepSrc=isUSD?'TC boleto':(STATE.mepFromBoletos[normalizeDate(fecha)]?'Boleto USD':(STATE.historicalMep[normalizeDate(fecha)]?'ArgentinaDatos':'Estimado'));
+        result.boletosMap[key].ops.push({fecha:fecha,usd:usd,mep:mepUsed,mepSrc:mepSrc,precio:precio,cant:Math.abs(cant),netoARS:Math.abs(neto),isUSD:isUSD});
+      }
+    });
+  }
+
+  // Resultados por FCI — suscripciones con cuotaparte
+  var fcisn=wb.SheetNames.find(function(s){
+    var sl=s.toLowerCase(); return sl.includes('fci')||sl.includes('resul')&&sl.includes('fondo');
+  });
+  if(fcisn){
+    result.fciData=parseFCISheet(wb.Sheets[fcisn]);
+  }
+
+  return result;
+}
+
+function normalizeInstName(s){
+  return s.toLowerCase().replace(/cedear\s+(etf\s+)?/,'').replace(/\s+/g,' ').slice(0,20);
+}
+
+// Parse FCI sheet to extract subscription cost per cuotaparte
+function excelSerialToStr(n){
+  // Excel serial date → "DD/MM/YYYY"
+  var d=new Date(Math.round((n-25569)*86400*1000));
+  var dd=String(d.getUTCDate()).padStart(2,'0');
+  var mm=String(d.getUTCMonth()+1).padStart(2,'0');
+  var yy=d.getUTCFullYear();
+  return dd+'/'+mm+'/'+yy;
+}
+function isFCIDate(v){
+  // Accepts: "DD/MM/YYYY" string, Date object, or Excel serial (>40000)
+  if(typeof v==='number'&&v>40000) return true;
+  if(v instanceof Date) return true;
+  return isDateStr(String(v||'').trim());
+}
+function getFCIDateStr(v){
+  if(typeof v==='number'&&v>40000) return excelSerialToStr(v);
+  if(v instanceof Date){
+    var dd=String(v.getDate()).padStart(2,'0');
+    var mm=String(v.getMonth()+1).padStart(2,'0');
+    return dd+'/'+mm+'/'+v.getFullYear();
+  }
+  return String(v||'').trim();
+}
+
+function parseFCISheet(sheet){
+  var rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',cellDates:true});
+  var fcis={};
+  var currentFCI=null;
+
+  rows.forEach(function(r){
+    var c0=r[0];
+    var c0s=String(c0||'').trim();
+    if(!c0s||c0s==='ARS'||c0s==='USD') return;
+    if(c0s.toLowerCase().includes('saldo anterior')) return;
+    if(c0s==='Total'||c0s.toLowerCase()==='total') return;
+
+    if(isFCIDate(c0)){
+      if(!currentFCI) return;
+      var fechaStr=getFCIDateStr(c0);
+      // Try to find Tipo Movimiento — scan columns 4-7 for "Suscri"
+      var tipo='', cant=0, cuota=0, moneda='';
+      for(var ci=3;ci<=8;ci++){
+        var cv=String(r[ci]||'').trim().toLowerCase();
+        if(cv.includes('suscri')||cv.includes('rescate')||cv.includes('cuotaparte')){
+          tipo=cv;
+          cant=parseNum(r[ci+1]||r[ci-1]||0);
+          cuota=parseNum(r[ci+2]||r[ci+1]||0);
+          break;
+        }
+      }
+      // Fallback: fixed columns
+      if(!tipo){
+        tipo=String(r[5]||'').trim().toLowerCase();
+        cant=parseNum(r[6]);
+        cuota=parseNum(r[7]);
+      }
+      moneda=String(r[2]||'').trim();
+      var isUSD=moneda.toLowerCase().includes('dolar')||currentFCI.toLowerCase().includes('dolar')||currentFCI.toLowerCase().includes('dollar');
+      if(tipo.includes('suscri')&&cuota>0&&cant>0){
+        if(!fcis[currentFCI].subscriptions) fcis[currentFCI].subscriptions=[];
+        fcis[currentFCI].subscriptions.push({
+          fecha:fechaStr, cantidad:cant, cuotaparte:cuota,
+          moneda:moneda, isUSD:isUSD,
+          totalUSD:isUSD?cant*cuota:cant*cuota/getMepForDate(fechaStr),
+        });
+      }
+    } else {
+      // FCI name header line
+      currentFCI=c0s.replace(/\s*-\s*(Pesos|Dolar MEP.*)$/i,'').trim();
+      if(!fcis[currentFCI]) fcis[currentFCI]={name:currentFCI,subscriptions:[]};
+    }
+  });
+  return fcis;
+}
+
+// ── Movimientos ──
+function parseMov(buffer){
+  var wb=XLSX.read(buffer,{type:'array'});
+  var sn=wb.SheetNames[0];
+  var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:''});
+  var inflows=[], lastDate='';
+  var clientHint=sn.replace(/\d{2}-\d{2}-\d{4}/g,'').replace(/[\s_\-]+/g,' ').trim();
+
+  rows.forEach(function(r){
+    var liq=String(r['Liquidación']||r['Liquidacion']||'').trim();
+    if(liq) lastDate=liq;
+    var tipo=String(r['Tipo de operación']||r['Tipo de operacion']||'').trim().toLowerCase();
+    var mda=String(r['Mda']||r['Moneda']||'').trim();
+    var inst=String(r['Instrumento']||'').trim().toLowerCase();
+    var neto=parseNum(r['Neto']||0);
+    if(neto<=0||!(tipo==='recibo de cobro'||tipo.includes('recibo de cobro'))) return;
+
+    var isUSD=mda==='USD D'||mda==='USD'||mda.toLowerCase().includes('usd');
+    var isARSDeposit=!isUSD&&(inst.includes('peso')||inst.includes('dolar')||inst==='');
+    if(isUSD){
+      inflows.push({fecha:liq,concepto:'Recibo de Cobro',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
+    } else if(isARSDeposit){
+      inflows.push({fecha:liq,concepto:'Depósito Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
+    }
+  });
+  return {inflows:inflows,lastDate:lastDate,clientHint:clientHint};
+}
+
+// ── Cuenta Corriente Monetaria ──
+function parseCTACTEMON(buffer){
+  var wb=XLSX.read(buffer,{type:'array'});
+  var sn=wb.SheetNames[0];
+  var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:''});
+  var cashItems=[];
+  var currentAccount=null;
+
+  rows.forEach(function(r){
+    var c0=String(r[0]||'').trim();
+    var detalle=String(r[2]||'').trim();
+    var saldo=parseNum(r[r.length-1]);  // last column = Saldo
+
+    if(c0&&c0!=='Disponible'&&detalle!=='Saldo Anterior'){
+      // Account header like "Dolar 7000 - USD 7000" or "Dolar MEP (Local) - USD D" or "Pesos - $"
+      currentAccount=c0;
+    }
+    if(detalle==='Saldo Anterior'&&currentAccount&&saldo!==0){
+      var sl=currentAccount.toLowerCase();
+      var tipo=sl.includes('7000')?'USD_CABLE':sl.includes('mep')||sl.includes('usd d')?'USD_MEP':'ARS';
+      var instName=currentAccount.replace(/\s*-\s*.*$/,'').trim();
+      cashItems.push({cuenta:instName,saldo:saldo,tipo:tipo});
+    }
+  });
+  return cashItems;
+}
+
+// ── Build positions ──
+function buildPositions(positions, boletosMap, fromValuacion){
+  boletosMap=boletosMap||{};
+  function getCat(inst, valCat){
+    // If coming from Valuación, use its category header to guide classification
+    if(valCat){
+      var vc=valCat.toLowerCase();
+      if(vc.includes('cedear')) return 'CEDEAR';
+      if(vc.includes('etf')) return 'ETF';
+      if(vc.includes('fondo')||vc.includes('fci')) return 'FCI';
+      if(vc.includes('obligacion')||vc.includes('obligación')||vc.includes(' on ')) return 'Oblig. Negociable';
+      if(vc.includes('bono')||vc.includes('letes')) return 'Título Público';
+    }
+    var s=inst.toLowerCase();
+    if(s.includes('fondo')||s.includes('fci')||s.includes('adcap')) return 'FCI';
+    if(s.includes('bono')||s.includes('step up')||s.includes('letes')) return 'Título Público';
+    if(/\scl\.\d/i.test(s)||s.includes('negociable')||/(^| )on /.test(s)||s.includes('ebytem')||s.includes('obligaci')) return 'Oblig. Negociable';
+    if(s.includes('etf')) return 'ETF';
+    if(s.includes('cedear')) return 'CEDEAR';
+    return 'Otros';
+  }
+
+  return positions.map(function(p){
+    var cat=getCat(p.instrumento, fromValuacion?p.categoria:null);
+
+    // Determine if USD position
+    var instL=p.instrumento.toLowerCase();
+    var isUSDpos;
+    if(fromValuacion){
+      isUSDpos=p.isUSD;
+    } else {
+      isUSDpos=p.valorUSD>0||(p.moneda&&(p.moneda.includes('dolar')||p.moneda.includes('usd')))||instL.includes('dolar')||instL.includes('dollar')||instL.includes('renta dol');
+    }
+
+    // Find cost from boletosMap (used as fallback or when no valuacion)
+    var cost=boletosMap[p.codigo];
+    if(!cost){
+      cost=Object.values(boletosMap).find(function(c){
+        if(!c.instrumento||!p.instrumento) return false;
+        var a=c.instrumento.toLowerCase(), b=p.instrumento.toLowerCase();
+        return a.slice(0,18)===b.slice(0,18)||a.includes(b.slice(0,14))||b.includes(a.slice(0,14));
+      });
+    }
+
+    var costoTotalUSD, precioCompraUSD, pppNativo=null;
+    if(p.ppp>0){
+      pppNativo=p.ppp;
+      if(isUSDpos){
+        precioCompraUSD=p.ppp;
+        costoTotalUSD=p.ppp*p.cantidad;
+      } else {
+        precioCompraUSD=p.ppp/STATE.mepMid;
+        costoTotalUSD=(p.ppp*p.cantidad)/STATE.mepMid;
+      }
+    } else {
+      // Fallback: boletos cost basis
+      costoTotalUSD=cost?cost.totalUSD:0;
+      precioCompraUSD=cost&&cost.qty>0?cost.totalUSD/cost.qty:0;
+    }
+
+    // Value in USD — p.valorARS / p.valorUSD already set correctly by both parsers
+    var valorARS=p.valorARS||0;
+    var valorUSD=p.valorUSD||0;
+
+    return {
+      instrumento:p.instrumento, ticker:p.ticker, codigo:p.codigo||'', categoria:cat,
+      cantidad:p.cantidad, valorARS:valorARS, valorUSD:valorUSD,
+      costoTotalUSD:costoTotalUSD, precioCompraUSD:precioCompraUSD,
+      isFCI:cat==='FCI', pppNativo:pppNativo, isUSDpos:isUSDpos,
+      hasHistory:costoTotalUSD>0,
+    };
+  });
+}
+
+// ═══════════════════════════════════════
+//  GENERATE
+// ═══════════════════════════════════════
+async function generate(){
+  var mepC=parseFloat(document.getElementById('inp-mep-c').value)||0;
+  var mepV=parseFloat(document.getElementById('inp-mep-v').value)||0;
+  if(mepC&&mepV) STATE.mepMid=(mepC+mepV)/2;
+  else if(mepC||mepV) STATE.mepMid=mepC||mepV;
+  if(!STATE.mepMid||STATE.mepMid<100){ showToast('Ingresá el MEP antes de continuar.'); return; }
+
+  document.getElementById('loading').style.display='flex';
+  document.getElementById('loading-txt').textContent='Cargando MEP histórico...';
+
+  var histOk=await fetchHistoricalMep();
+
+  document.getElementById('loading-txt').textContent='Procesando archivos...';
+  await new Promise(function(r){setTimeout(r,80);});
+
+  try{
+    var mov=parseMov(bufMov);
+    var rf=bufRF?parseRentaFinanciera(bufRF):null;
+    var val=bufVal?parseValuacion(bufVal):null;
+
+    var boletosMap=rf?rf.boletosMap:{};
+    var rawPositions, fromValuacion;
+    if(val){
+      rawPositions=val.positions;
+      fromValuacion=true;
+    } else {
+      rawPositions=rf?rf.positions:[];
+      fromValuacion=false;
+    }
+
+    STATE.positions=buildPositions(rawPositions, boletosMap, fromValuacion);
+    STATE.boletosMap=boletosMap;
+    STATE.cashItems=bufCta?parseCTACTEMON(bufCta):(val?val.cashItems:[]);
+    STATE.inflows=mov.inflows;
+    STATE.lastDate=(val&&val.lastDate)||mov.lastDate;
+    var manualClient=document.getElementById('inp-client').value.trim();
+    STATE.client=manualClient||(val&&val.clientHint)||mov.clientHint||'Cliente';
+
+    // Fill MEP for ARS inflows
+    var hasEstimated=false;
+    STATE.inflows.forEach(function(f){
+      if(f.moneda==='ARS'){
+        var realMep=getMepForDate(f.fecha);
+        f.mep=realMep;
+        var iso=normalizeDate(f.fecha);
+        f.mepSource=STATE.historicalMep[iso]?'ArgentinaDatos':
+                    STATE.mepFromBoletos[iso]?'Boletos AdCap':'Estimado';
+        f.mepVerified=f.mepSource!=='Estimado';
+        if(!f.mepVerified) hasEstimated=true;
+      }
+    });
+
+    if(!histOk||hasEstimated){
+      document.getElementById('mep-warn').style.display='block';
+    }
+
+    renderDashboard();
+  }catch(e){
+    alert('Error procesando los archivos:\n'+e.message);
+    console.error(e);
+  }
+  document.getElementById('loading').style.display='none';
+}
+
+// ═══════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════
+function renderDashboard(){
+  document.getElementById('tb-client').textContent=STATE.client;
+  document.getElementById('tb-date').textContent=STATE.lastDate||new Date().toLocaleDateString('es-AR');
+  document.getElementById('dash-mep-txt').textContent='MEP $'+Math.round(STATE.mepMid).toLocaleString('es-AR');
+  document.getElementById('dash-mep-inp').value=STATE.mepMid.toFixed(2);
+  document.getElementById('dash-mep-src').textContent=STATE.mepSource||'—';
+  document.getElementById('dash-mep-dot').className='mep-badge-dot'+(STATE.mepFresh?'':' stale');
+  render();
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  // Set print date attribute on topbar
+  var now=new Date();
+  var printDate=now.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})+
+    ' '+now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  document.querySelector('.topbar').setAttribute('data-print-date',printDate);
+  window.scrollTo(0,0);
+}
+
+function render(){
+  var mep=STATE.mepMid||1470;
+  renderHero(mep);
+  renderPositions(mep);
+  renderInflows();
+}
+
+function getPortfolioUSD(mep){
+  // Securities
+  var secUSD=STATE.positions.reduce(function(s,p){return s+(p.valorARS>0?p.valorARS/mep:p.valorUSD);},0);
+  // Cash (from CTACTEMON)
+  var cashUSD=STATE.cashItems.reduce(function(s,c){
+    if(c.tipo==='USD_CABLE'||c.tipo==='USD_MEP') return s+c.saldo;
+    return s+c.saldo/mep; // ARS cash
+  },0);
+  return {sec:secUSD,cash:cashUSD,total:secUSD+cashUSD};
+}
+
+function renderHero(mep){
+  var totalInv=STATE.inflows.reduce(function(s,f){return s+(f.moneda==='USD'?f.monto:f.monto/f.mep);},0);
+  var port=getPortfolioUSD(mep);
+  var totalCur=port.total;
+  var gp=totalCur-totalInv;
+  var pct=totalInv>0?(gp/totalInv*100):0;
+
+  document.getElementById('h-pct').textContent=totalInv>0?fmtPct(pct):'—';
+  document.getElementById('h-pct').className='hero-pct '+sign(pct);
+  document.getElementById('h-desc').textContent=
+    'Capital depositado vs. valor actual de cartera + liquidez · MEP hoy $'+Math.round(mep).toLocaleString('es-AR');
+
+  document.getElementById('h-inv').textContent=fmt(totalInv,0);
+  document.getElementById('h-inv-sub').textContent=STATE.inflows.length+' depósito'+(STATE.inflows.length!==1?'s':'')+' al período';
+
+  document.getElementById('h-cur').textContent=totalCur>0?fmt(totalCur,0):'—';
+  var subParts=[];
+  if(port.sec>0) subParts.push(fmtARS(port.sec*mep)+' títulos');
+  if(port.cash!==0) subParts.push(fmt(Math.abs(port.cash),0)+' liquidez');
+  document.getElementById('h-cur-sub').textContent=subParts.join(' + ')||(totalCur>0?fmtARS(totalCur*mep):'');
+
+  var gpEl=document.getElementById('h-gp');
+  gpEl.textContent=totalInv>0?((gp>=0?'+':'-')+fmt(Math.abs(gp),0)):'—';
+  gpEl.className='hs-val '+sign(gp);
+  document.getElementById('h-gp-sub').textContent=totalInv>0?((gp>=0?'+':'-')+fmtARS(Math.abs(gp*mep))):'';
+}
+
+function toggleAudit(rowId){
+  var row=document.getElementById(rowId);
+  var audit=document.getElementById('audit-'+rowId);
+  if(!audit) return;
+  var open=audit.style.display!=='none';
+  audit.style.display=open?'none':'table-row';
+  if(row) row.classList.toggle('open',!open);
+}
+
+function editPPP(ticker, isUSD){
+  var cur=parseFloat(localStorage.getItem('ppp_'+ticker))||'';
+  var label=isUSD?'USD/cuotaparte':'ARS/cuotaparte';
+  // Use inline modal instead of prompt (prompt gets blocked by browser on file://)
+  var existing=document.getElementById('ppp-modal');
+  if(existing) existing.remove();
+  var modal=document.createElement('div');
+  modal.id='ppp-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(8,13,26,.85);z-index:500;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML='<div style="background:#0d1526;border:1px solid #243660;border-radius:12px;padding:28px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.6)">'
+    +'<div style="font-size:12px;color:#607090;margin-bottom:6px">Precio de compra promedio · '+ticker+'</div>'
+    +'<div style="font-size:13px;color:#e8edf8;margin-bottom:16px">Ingresá el PPP en <strong style="color:#f0b429">'+label+'</strong><br><span style="font-size:11px;color:#607090">Encontralo en AdCap → Rendimientos → Valuación Final</span></div>'
+    +'<input id="ppp-inp" value="'+(cur||'')+'" placeholder="ej: 17.50" style="width:100%;background:#080d1a;border:1px solid #243660;border-radius:8px;padding:10px 14px;color:#e8edf8;font-size:18px;font-family:monospace;margin-bottom:16px">'
+    +'<div style="display:flex;gap:10px">'
+    +'<button onclick="confirmPPP(\''+ticker+'\','+isUSD+')" style="flex:1;background:#1a6ef5;border:none;border-radius:8px;padding:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Guardar</button>'
+    +'<button onclick="document.getElementById(\'ppp-modal\').remove()" style="flex:1;background:transparent;border:1px solid #243660;border-radius:8px;padding:10px;color:#607090;font-size:13px;cursor:pointer">Cancelar</button>'
+    +'</div></div>';
+  document.body.appendChild(modal);
+  setTimeout(function(){ var inp=document.getElementById('ppp-inp'); if(inp){inp.focus();inp.select();} },50);
+  document.getElementById('ppp-inp').addEventListener('keydown',function(e){
+    if(e.key==='Enter') confirmPPP(ticker,isUSD);
+    if(e.key==='Escape') modal.remove();
+  });
+}
+function confirmPPP(ticker,isUSD){
+  var inp=document.getElementById('ppp-inp');
+  var val=inp?inp.value:'';
+  var n=parseFloat(String(val).replace(',','.'));
+  if(!n||n<=0){ localStorage.removeItem('ppp_'+ticker); }
+  else { localStorage.setItem('ppp_'+ticker,n); }
+  var modal=document.getElementById('ppp-modal');
+  if(modal) modal.remove();
+  // Reset the pppNativo on the position so it re-reads from localStorage
+  STATE.positions.forEach(function(p){ if(p.ticker===ticker){ p.pppNativo=0; p.hasHistory=false; p.costoTotalUSD=0; } });
+  renderPositions(STATE.mepMid);
+}
+
+function renderPositions(mep){
+  var cats=['CEDEAR','ETF','Oblig. Negociable','Título Público','FCI','Otros'];
+  var grouped={};
+  cats.forEach(function(c){grouped[c]=[];});
+  STATE.positions.forEach(function(p){
+    var c=p.categoria||'Otros';
+    if(!grouped[c]) grouped[c]=[];
+    grouped[c].push(p);
+  });
+
+  var html='',totalCost=0,totalCur=0;
+
+  cats.forEach(function(cat){
+    var items=grouped[cat];
+    if(!items||!items.length) return;
+    html+='<tr class="cat-row"><td colspan="8">'+cat+'</td></tr>';
+    items.forEach(function(p){
+      var curUSD=p.valorARS>0?p.valorARS/mep:p.valorUSD;
+      var cost=p.costoTotalUSD||0;
+      var gp=cost>0?curUSD-cost:null;
+      var pct=cost>0&&gp!==null?(gp/cost*100):null;
+
+      // Check localStorage for manually entered PPP
+      var savedPPP=parseFloat(localStorage.getItem('ppp_'+p.ticker))||0;
+      if(savedPPP>0&&!p.pppNativo){
+        p.pppNativo=savedPPP;
+        var mepForCost=STATE.mepMid||1500;
+        if(p.isUSDpos){ p.costoTotalUSD=savedPPP*p.cantidad; p.precioCompraUSD=savedPPP; }
+        else { p.costoTotalUSD=(savedPPP*p.cantidad)/mepForCost; p.precioCompraUSD=savedPPP/mepForCost; }
+        p.hasHistory=true;
+        cost=p.costoTotalUSD;
+        var gp2=curUSD-cost; gp=gp2; pct=cost>0?gp/cost*100:null;
+      }
+
+      // Precio compra — pencil always visible for manual override
+      var pCmpTxt;
+      var editBtn='<button class="ppp-edit" onclick="editPPP(\''+p.ticker+'\','+p.isUSDpos+')" title="Editar precio de compra">✎</button>';
+      if(p.isFCI&&p.pppNativo){
+        var pppLabel=p.isUSDpos?('USD '+fmtN(p.pppNativo,4)):('$'+fmtN(p.pppNativo,2)+' ARS');
+        pCmpTxt='<span class="mono">'+pppLabel+' c/p</span>'+editBtn;
+      } else if(!p.hasHistory){
+        pCmpTxt='<span class="no-cost">saldo anterior</span>'+editBtn;
+      } else if(p.precioCompraUSD&&p.cantidad>0){
+        pCmpTxt='<span class="mono">USD '+fmtN(p.precioCompraUSD,4)+'</span>'+editBtn;
+      } else { pCmpTxt='<span class="muted">—</span>'+editBtn; }
+
+      // Precio actual per unit — also in native currency for FCIs
+      var pActUSD=curUSD>0&&p.cantidad>0?curUSD/p.cantidad:0;
+      var pActTxt;
+      if(p.isFCI&&p.cantidad>0){
+        if(p.isUSDpos){
+          var cuotaActUSD=p.valorUSD>0?p.valorUSD/p.cantidad:pActUSD;
+          pActTxt='<span class="mono c-white">USD '+fmtN(cuotaActUSD,4)+' c/p</span>';
+        } else {
+          var cuotaActARS=p.valorARS>0&&p.cantidad>0?p.valorARS/p.cantidad:0;
+          pActTxt='<span class="mono c-white">$'+fmtN(cuotaActARS,2)+' ARS c/p</span>';
+        }
+      } else {
+        pActTxt='<span class="mono c-white">USD '+fmtN(pActUSD,4)+'</span>';
+      }
+
+      // For FCIs without cost basis, use current value as proxy for invested
+      var effectiveCost=cost>0?cost:(p.isFCI&&!p.hasHistory?curUSD:0);
+      var costTxt=cost>0?('<span class="mono">'+fmt(cost)+'</span>'):
+        (p.isFCI&&!p.hasHistory?('<span class="mono muted" title="Al valor actual (sin costo base)">'+fmt(curUSD)+'</span>'):'<span class="muted">—</span>');
+      totalCost+=effectiveCost; totalCur+=curUSD;
+      var cantFmt=Number.isInteger(p.cantidad)?p.cantidad.toLocaleString('es-AR'):fmtN(p.cantidad,4);
+      var instShort=p.instrumento.replace(/^CEDEAR\s+(ETF\s+)?/i,'').slice(0,46);
+
+      var rowId='pos-'+p.ticker.replace(/[^a-z0-9]/gi,'_');
+      var hasOps=p.codigo&&STATE.boletosMap&&(STATE.boletosMap[p.codigo]||
+        Object.values(STATE.boletosMap).find(function(b){return b.instrumento&&p.instrumento&&b.instrumento.slice(0,16)===p.instrumento.slice(0,16);}));
+      var expandable=hasOps&&hasOps.ops&&hasOps.ops.length>0;
+      html+='<tr class="pos-row'+(expandable?' expandable':'')+'" id="'+rowId+'"'
+        +(expandable?' onclick="toggleAudit(\''+rowId+'\')"':'')+'>'
+        +'<td><span class="ticker">'+p.ticker+'</span>'+instShort
+        +(expandable?'<span class="expand-icon">▶</span>':'')
+        +'<div class="ast-sub">'+cat+(p.isFCI?' · Valor Cuotaparte':'')+'</div></td>'
+        +'<td class="r muted">'+cantFmt+'</td>'
+        +'<td class="r">'+pCmpTxt+'</td>'
+        +'<td class="r">'+pActTxt+'</td>'
+        +'<td class="r">'+costTxt+'</td>'
+        +'<td class="r"><span class="mono c-white">'+fmt(curUSD)+'</span></td>'
+        +'<td class="r">'+(gp!==null?pnlHtml(gp):'<span class="muted">—</span>')+'</td>'
+        +'<td class="r">'+(pct!==null?pctHtml(pct):'<span class="muted">—</span>')+'</td>'
+        +'</tr>';
+      if(expandable){
+        var ops=hasOps.ops;
+        var auditRows=ops.map(function(op){
+          var srcClass=op.mepSrc==='Estimado'?'est':'ok';
+          var netoARS=op.netoARS?op.netoARS.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+          var precioFmt=op.precio>0?op.precio.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+          var mepFmt=op.mep.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+          var usdFmt=(op.usd).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+          return '<tr>'
+            +'<td class="hl">'+op.fecha+'</td>'
+            +'<td>'+op.cant.toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:4})+'</td>'
+            +(op.isUSD?'<td class="hl">USD '+precioFmt+'</td><td>—</td>':'<td>$'+precioFmt+'</td><td class="hl">$'+netoARS+'</td>')
+            +'<td>$'+mepFmt+'<span class="src-badge '+srcClass+'">'+op.mepSrc+'</span></td>'
+            +'<td>÷</td>'
+            +'<td class="hl">USD '+usdFmt+'</td>'
+            +'</tr>';
+        }).join('');
+        var totalOpsUSD=ops.reduce(function(s,o){return s+o.usd;},0);
+        var totalQty=ops.reduce(function(s,o){return s+o.cant;},0);
+        var pppCalc=totalQty>0?totalOpsUSD/totalQty:0;
+        html+='<tr class="audit-row" id="audit-'+rowId+'" style="display:none">'
+          +'<td colspan="8"><div class="audit-panel">'
+          +'<div class="audit-title">Detalle de compras · '+p.instrumento.slice(0,40)+'</div>'
+          +'<table class="audit-tbl"><thead><tr>'
+          +'<th>Fecha</th><th>Cantidad</th><th>Precio</th><th>Neto ARS</th>'
+          +'<th>MEP utilizado</th><th></th><th>USD total</th>'
+          +'</tr></thead><tbody>'+auditRows+'</tbody>'
+          +'<tfoot><tr style="border-top:1px solid var(--border2)">'
+          +'<td class="hl" colspan="2">TOTAL · '+totalQty.toLocaleString('es-AR',{maximumFractionDigits:4})+' unidades</td>'
+          +'<td colspan="4" style="color:var(--text-dim)">PPP calculado</td>'
+          +'<td class="hl">USD '+pppCalc.toFixed(4)+' / u</td>'
+          +'</tr></tfoot></table>'
+          +'<div class="audit-note">Neto = precio × cantidad + comisión AdCap (~0.6%) + IVA. '
+          +'El PPP usa el Neto total (costo real) dividido MEP de la fecha de concertación o liquidación. '
+          +(ops.some(function(o){return o.mepSrc==='Estimado';})
+            ?'⚠ Una o más operaciones usan MEP estimado (fallback mensual). Verificar con valor real del día para mayor precisión.':'')
+          +'</div>'
+          +'</div></td></tr>';
+      }
+    });
+  });
+
+  // Cash / Liquidez section from CTACTEMON
+  if(STATE.cashItems.length){
+    html+='<tr class="cat-row"><td colspan="8">Liquidez</td></tr>';
+    var cashTotal=0;
+    STATE.cashItems.forEach(function(c){
+      var usd=c.tipo==='ARS'?c.saldo/mep:c.saldo;
+      cashTotal+=usd;
+      var monSign=usd>=0?'c-green':'c-red';
+      html+='<tr class="liq-row">'
+        +'<td><span class="ticker c-gold" style="color:var(--gold);border-color:rgba(240,180,41,.3)">'+c.tipo.replace('_',' ')+'</span>'+c.cuenta
+        +'<div class="ast-sub">Saldo disponible</div></td>'
+        +'<td class="r muted">—</td>'
+        +'<td class="r muted">—</td>'
+        +'<td class="r muted">—</td>'
+        +'<td class="r muted">—</td>'
+        +'<td class="r"><span class="mono '+(usd>=0?'c-white':'c-red')+'">'+fmt(Math.abs(usd))+'</span></td>'
+        +'<td class="r muted">—</td>'
+        +'<td class="r muted">—</td>'
+        +'</tr>';
+    });
+    totalCur+=0; // already included in hero via getPortfolioUSD
+  }
+
+  var totalGP=totalCur-totalCost;
+  var totalPct=totalCost>0?(totalGP/totalCost*100):0;
+  html+='<tr class="total-row">'
+    +'<td colspan="4" style="font-weight:600">TOTAL POSICIÓN EN TÍTULOS</td>'
+    +'<td class="r mono" style="font-weight:600">'+fmt(totalCost)+'</td>'
+    +'<td class="r mono c-white" style="font-weight:600">'+fmt(totalCur)+'</td>'
+    +'<td class="r">'+pnlHtml(totalGP)+'</td>'
+    +'<td class="r">'+pctHtml(totalPct)+'</td>'
+    +'</tr>';
+
+  document.getElementById('pos-tbody').innerHTML=html;
+  document.getElementById('pos-badge').textContent=STATE.positions.length+' activos'+(STATE.cashItems.length?' + '+STATE.cashItems.length+' liquidez':'');
+}
+
+function renderInflows(){
+  var html='',total=0;
+  STATE.inflows.forEach(function(f,idx){
+    var usd=f.moneda==='USD'?f.monto:f.monto/f.mep;
+    total+=usd;
+    var mTxt=f.moneda==='USD'?('<span class="mono">'+fmt(f.monto)+'</span>'):('<span class="mono">'+fmtARS(f.monto)+'</span>');
+    var mepCell;
+    if(f.moneda==='USD'){
+      mepCell='<span class="muted">USD directo</span>';
+    } else {
+      var srcCls=f.mepVerified?'verified':'';
+      var srcTxt=f.mepVerified?'✓ '+f.mepSource:'⚠ Estimado — verificar';
+      mepCell='<input class="mep-edit-inp" type="number" value="'+Math.round(f.mep)+'" min="500" max="5000" step="1" '
+        +'onchange="updateInflowMep('+idx+',this.value)">'
+        +'<span class="mep-src-lbl '+srcCls+'">'+srcTxt+'</span>';
+    }
+    html+='<tr>'
+      +'<td class="muted">'+f.fecha+'</td>'
+      +'<td>'+f.concepto+'</td>'
+      +'<td class="r">'+mTxt+'</td>'
+      +'<td class="r" style="min-width:140px">'+mepCell+'</td>'
+      +'<td class="r c-green mono" id="iusd-'+idx+'">'+fmt(usd)+'</td>'
+      +'</tr>';
+  });
+  if(!html) html='<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">No se encontraron ingresos de capital en el archivo.</td></tr>';
+  document.getElementById('inflow-tbody').innerHTML=html;
+  document.getElementById('inflow-total').textContent=fmt(total);
+  document.getElementById('inflow-badge').textContent=STATE.inflows.length+' depósito'+(STATE.inflows.length!==1?'s':'');
+}
+
+function updateInflowMep(idx,val){
+  var mep=parseFloat(val); if(!mep||mep<100) return;
+  STATE.inflows[idx].mep=mep; STATE.inflows[idx].mepVerified=true; STATE.inflows[idx].mepSource='Manual';
+  var el=document.getElementById('iusd-'+idx);
+  if(el) el.textContent=fmt(STATE.inflows[idx].monto/mep);
+  var total=STATE.inflows.reduce(function(s,f){return s+(f.moneda==='USD'?f.monto:f.monto/f.mep);},0);
+  document.getElementById('inflow-total').textContent=fmt(total);
+  renderHero(STATE.mepMid);
+}
+
+// ═══════════════════════════════════════
+//  MEP DASHBOARD CONTROLS
+// ═══════════════════════════════════════
+function applyDashMep(){
+  var v=parseFloat(document.getElementById('dash-mep-inp').value);
+  if(!v||v<100){ showToast('Ingresá un MEP válido'); return; }
+  STATE.mepMid=v; STATE.mepFresh=false;
+  STATE.mepSource='Manual · $'+v.toLocaleString('es-AR');
+  document.getElementById('dash-mep-txt').textContent='MEP $'+Math.round(v).toLocaleString('es-AR');
+  document.getElementById('dash-mep-dot').className='mep-badge-dot stale';
+  document.getElementById('dash-mep-src').textContent=STATE.mepSource;
+  render();
+  showToast('Recalculado con MEP $'+v.toLocaleString('es-AR'));
+}
+async function refreshDashMep(){
+  try{
+    var r=await fetch('https://dolarapi.com/v1/dolares/bolsa');
+    var d=await r.json();
+    var mid=Math.round(((d.compra+d.venta)/2)*100)/100;
+    STATE.mepMid=mid; STATE.mepFresh=true;
+    STATE.mepSource='DolarAPI · C:$'+d.compra+' / V:$'+d.venta;
+    document.getElementById('dash-mep-inp').value=mid.toFixed(2);
+    document.getElementById('dash-mep-txt').textContent='MEP $'+Math.round(mid).toLocaleString('es-AR');
+    document.getElementById('dash-mep-dot').className='mep-badge-dot';
+    document.getElementById('dash-mep-src').textContent=STATE.mepSource;
+    render();
+    showToast('MEP actualizado: $'+mid.toLocaleString('es-AR'));
+  }catch(e){ showToast('No se pudo actualizar el MEP.'); }
+}
+function focusMep(){
+  document.getElementById('mep-inline').scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(function(){document.getElementById('dash-mep-inp').focus();},400);
+}
+document.getElementById('dash-mep-inp').addEventListener('keydown',function(e){if(e.key==='Enter')applyDashMep();});
+
+function buildPrintReport(){
+  var mep=STATE.mepMid||1470;
+  var totalInv=STATE.inflows.reduce(function(s,f){return s+(f.moneda==='USD'?f.monto:f.monto/f.mep);},0);
+  var port=getPortfolioUSD(mep);
+  var totalCur=port.total;
+  var gp=totalCur-totalInv;
+  var pct=totalInv>0?(gp/totalInv*100):0;
+  var pctStr=(pct>=0?'+':'')+pct.toFixed(2)+'%';
+  var pctColor=pct>=0?'#2ecc8a':'#e05252';
+  var today=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
+  var reportDate=STATE.lastDate||today;
+
+  // Build allocation by category for pie chart
+  var catTotals={};
+  STATE.positions.forEach(function(p){
+    var usd=p.valorARS>0?p.valorARS/mep:p.valorUSD;
+    var cat=p.categoria||'Otros';
+    catTotals[cat]=(catTotals[cat]||0)+usd;
+  });
+  STATE.cashItems.forEach(function(c){
+    var usd=c.tipo==='ARS'?c.saldo/mep:c.saldo;
+    catTotals['Liquidez']=(catTotals['Liquidez']||0)+usd;
+  });
+  var catColors={'CEDEAR':'#1a6ef5','ETF':'#3d8bff','Oblig. Negociable':'#2ecc8a',
+    'Título Público':'#f0b429','FCI':'#7c5cbf','Liquidez':'#607090','Otros':'#e05252'};
+  var catEntries=Object.entries(catTotals).filter(function(e){return e[1]>0;})
+    .sort(function(a,b){return b[1]-a[1];});
+
+  // SVG pie chart
+  function buildPie(entries,total,cx,cy,r){
+    var svg='',angle=-Math.PI/2;
+    entries.forEach(function(e,i){
+      var slice=e[1]/total*Math.PI*2;
+      var x1=cx+r*Math.cos(angle), y1=cy+r*Math.sin(angle);
+      var x2=cx+r*Math.cos(angle+slice), y2=cy+r*Math.sin(angle+slice);
+      var large=slice>Math.PI?1:0;
+      var col=catColors[e[0]]||'#aaa';
+      svg+='<path d="M'+cx+','+cy+' L'+x1+','+y1+' A'+r+','+r+' 0 '+large+',1 '+x2+','+y2+' Z" fill="'+col+'" stroke="#080d1a" stroke-width="2"/>';
+      angle+=slice;
+    });
+    return svg;
+  }
+
+  // Build positions rows
+  var posRows='';
+  var cats=['CEDEAR','ETF','Oblig. Negociable','Título Público','FCI','Otros'];
+  var grouped={};
+  cats.forEach(function(c){grouped[c]=[];});
+  STATE.positions.forEach(function(p){ var c=p.categoria||'Otros'; if(!grouped[c])grouped[c]=[]; grouped[c].push(p); });
+
+  var ptotalCost=0, ptotalCur=0;
+  cats.forEach(function(cat){
+    var items=grouped[cat]; if(!items||!items.length) return;
+    posRows+='<tr style="background:#111d36"><td colspan="7" style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d8bff;padding:6px 10px">'+cat+'</td></tr>';
+    items.forEach(function(p){
+      var curUSD=p.valorARS>0?p.valorARS/mep:p.valorUSD;
+      var savedPPP=parseFloat(localStorage.getItem('ppp_'+p.ticker))||0;
+      var cost=p.costoTotalUSD||0;
+      if(savedPPP>0&&cost===0){
+        cost=p.isUSDpos?savedPPP*p.cantidad:(savedPPP*p.cantidad)/mep;
+      }
+      var effCost=cost>0?cost:(p.isFCI?curUSD:0);
+      var gp2=effCost>0?curUSD-effCost:null;
+      var pct2=effCost>0&&gp2!==null?gp2/effCost*100:null;
+      ptotalCost+=effCost; ptotalCur+=curUSD;
+      var gpStr=gp2!==null?((gp2>=0?'+':'')+gp2.toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0})):'—';
+      var pctStr2=pct2!==null?((pct2>=0?'+':'')+pct2.toFixed(2)+'%'):'—';
+      var gpColor=gp2===null?'#607090':gp2>=0?'#2ecc8a':'#e05252';
+      var pctColor2=pct2===null?'#607090':pct2>=0?'#2ecc8a':'#e05252';
+      var pppStr='—';
+      if(savedPPP>0){ pppStr=p.isUSDpos?('USD '+savedPPP.toFixed(4)):'$'+savedPPP.toFixed(2)+' ARS'; }
+      else if(p.precioCompraUSD>0){ pppStr='USD '+p.precioCompraUSD.toFixed(4); }
+      var instName=p.instrumento.replace(/^CEDEAR\s+(ETF\s+)?/i,'').slice(0,38);
+      var cantFmt=Number.isInteger(p.cantidad)?p.cantidad.toLocaleString('es-AR'):p.cantidad.toFixed(4);
+      posRows+='<tr style="border-bottom:1px solid #1c2d50">'
+        +'<td style="padding:6px 10px"><span style="font-family:monospace;font-size:9px;background:#162040;border:1px solid #1c2d50;border-radius:4px;padding:1px 5px;color:#3d8bff;margin-right:5px">'+p.ticker+'</span>'
+        +'<span style="font-size:11px;color:#e8edf8">'+instName+'</span></td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:#607090">'+cantFmt+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:#607090">'+pppStr+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:#e8edf8">'+fmt(effCost>0?effCost:curUSD)+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:#fff">'+fmt(curUSD)+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:'+gpColor+'">'+gpStr+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:'+pctColor2+'">'+pctStr2+'</td>'
+        +'</tr>';
+    });
+  });
+  var ptotalGP=ptotalCur-ptotalCost;
+  var ptotalPct=ptotalCost>0?ptotalGP/ptotalCost*100:0;
+
+  var pie=buildPie(catEntries,ptotalCur,130,130,110);
+  var legend=catEntries.map(function(e){
+    var pct2=(e[1]/ptotalCur*100).toFixed(1);
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">'
+      +'<div style="width:10px;height:10px;border-radius:2px;background:'+(catColors[e[0]]||'#aaa')+'"></div>'
+      +'<span style="font-size:11px;color:#e8edf8;flex:1">'+e[0]+'</span>'
+      +'<span style="font-size:11px;color:#3d8bff;font-family:monospace;font-weight:600">'+pct2+'%</span>'
+      +'</div>';
+  }).join('');
+
+  var inflowRows=STATE.inflows.map(function(f){
+    var usd=f.moneda==='USD'?f.monto:f.monto/f.mep;
+    var mepTxt=f.moneda==='USD'?'USD directo':'$'+Math.round(f.mep).toLocaleString('es-AR');
+    var montoTxt=f.moneda==='USD'?fmt(f.monto):f.monto.toLocaleString('es-AR',{style:'currency',currency:'ARS',minimumFractionDigits:0,maximumFractionDigits:0});
+    return '<tr style="border-bottom:1px solid #1c2d50">'
+      +'<td style="padding:6px 10px;font-size:11px;color:#607090">'+f.fecha+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;color:#e8edf8">'+f.descripcion+'</td>'
+      +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:#e8edf8">'+montoTxt+'</td>'
+      +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:#607090">'+mepTxt+'</td>'
+      +'<td style="padding:6px 10px;text-align:right;font-family:monospace;font-size:11px;color:#3d8bff">'+fmt(usd)+'</td>'
+      +'</tr>';
+  }).join('');
+
+  var html='<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+    +'<title>InTrade Capital · Reporte '+STATE.client+'</title>'
+    +'<style>@page{margin:14mm 16mm;size:A4}*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'body{font-family:system-ui,-apple-system,sans-serif;background:#080d1a;color:#e8edf8}'
+    +'table{width:100%;border-collapse:collapse}'
+    +'th{background:#111d36;color:#607090;font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:8px 10px;text-align:left;border-bottom:1px solid #243660}'
+    +'th.r,td.r{text-align:right}'
+    +'.page{padding:0 0 20px;page-break-after:always}'
+    +'.page:last-child{page-break-after:auto}'
+    +'</style></head><body>'
+
+    // ── PAGE 1: COVER ──
+    +'<div class="page" style="min-height:267mm;display:flex;flex-direction:column;justify-content:space-between;padding:30px 0">'
+
+    // Header
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:20px;border-bottom:2px solid #1a6ef5">'
+    +'<div style="display:flex;align-items:center;gap:14px">'
+    +'<div style="width:48px;height:48px;border-radius:50%;background:#0d1526;border:2px solid #243660;display:flex;align-items:center;justify-content:center;font-size:22px">🐂</div>'
+    +'<div><div style="font-size:18px;font-weight:700;color:#fff">InTrade Capital</div>'
+    +'<div style="font-size:10px;color:#3d8bff;letter-spacing:.15em;text-transform:uppercase">Monitor de Cartera</div></div>'
+    +'</div>'
+    +'<div style="text-align:right"><div style="font-size:11px;color:#607090">Reporte al</div>'
+    +'<div style="font-size:13px;color:#e8edf8;font-weight:500">'+reportDate+'</div>'
+    +'<div style="font-size:10px;color:#607090;margin-top:2px">MEP $'+Math.round(mep).toLocaleString('es-AR')+'</div>'
+    +'</div></div>'
+
+    // Client name
+    +'<div style="text-align:center;padding:32px 0 28px">'
+    +'<div style="font-size:11px;color:#607090;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">Resumen de Cartera</div>'
+    +'<div style="font-size:38px;font-weight:700;color:#fff;margin-bottom:6px">'+STATE.client+'</div>'
+    +'<div style="width:60px;height:3px;background:#1a6ef5;margin:0 auto"></div>'
+    +'</div>'
+
+    // Hero metrics
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:32px">'
+    +'<div style="background:#0d1526;border:1px solid #1c2d50;border-radius:10px;padding:20px;text-align:center">'
+    +'<div style="font-size:9px;color:#607090;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Capital Invertido</div>'
+    +'<div style="font-size:26px;font-weight:300;color:#fff;font-family:monospace">'+fmt(totalInv,0)+'</div>'
+    +'<div style="font-size:10px;color:#607090;margin-top:4px">'+STATE.inflows.length+' depósitos al período</div>'
+    +'</div>'
+    +'<div style="background:#0d1526;border:1px solid #1c2d50;border-radius:10px;padding:20px;text-align:center">'
+    +'<div style="font-size:9px;color:#607090;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Valor Actual</div>'
+    +'<div style="font-size:26px;font-weight:300;color:#fff;font-family:monospace">'+fmt(totalCur,0)+'</div>'
+    +'<div style="font-size:10px;color:#607090;margin-top:4px">Posiciones + liquidez en USD</div>'
+    +'</div>'
+    +'<div style="background:#0d1526;border:1px solid #1c2d50;border-radius:10px;padding:20px;text-align:center">'
+    +'<div style="font-size:9px;color:#607090;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Rentabilidad Total</div>'
+    +'<div style="font-size:26px;font-weight:300;color:'+pctColor+';font-family:monospace">'+pctStr+'</div>'
+    +'<div style="font-size:10px;color:'+pctColor+';margin-top:4px">'+(gp>=0?'+':'')+fmt(Math.abs(gp),0)+' USD</div>'
+    +'</div>'
+    +'</div>'
+
+    // Pie + legend
+    +'<div style="display:flex;align-items:center;gap:32px;background:#0d1526;border:1px solid #1c2d50;border-radius:12px;padding:24px">'
+    +'<svg viewBox="0 0 260 260" width="200" height="200" style="flex-shrink:0">'+pie+'</svg>'
+    +'<div style="flex:1"><div style="font-size:10px;color:#607090;text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px">Composición de Cartera</div>'+legend+'</div>'
+    +'</div>'
+
+    // Footer
+    +'<div style="text-align:center;padding-top:20px;font-size:9px;color:#2a3a60">'
+    +'InTrade Capital · Uso interno y para presentación a cliente · Generado el '+today
+    +'</div>'
+    +'</div>'
+
+    // ── PAGE 2: POSITIONS ──
+    +'<div class="page">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #1c2d50">'
+    +'<div><div style="font-size:16px;font-weight:600;color:#fff">Posición Actual · Activos en Cartera</div>'
+    +'<div style="font-size:11px;color:#607090;margin-top:2px">Precio de compra promedio vs. valor actual en USD al MEP de hoy</div></div>'
+    +'<div style="font-size:11px;color:#3d8bff;font-family:monospace">'+fmt(ptotalCur)+'</div>'
+    +'</div>'
+    +'<table><thead><tr>'
+    +'<th>Instrumento</th><th class="r">Cantidad</th><th class="r">P. Compra</th>'
+    +'<th class="r">Invertido (USD)</th><th class="r">Valor Actual (USD)</th>'
+    +'<th class="r">G/P (USD)</th><th class="r">Rentab.</th>'
+    +'</tr></thead><tbody>'+posRows+'</tbody>'
+    +'<tfoot><tr style="background:#111d36;border-top:2px solid #1a6ef5">'
+    +'<td colspan="3" style="padding:8px 10px;font-weight:600;font-size:12px;color:#fff">TOTAL</td>'
+    +'<td style="padding:8px 10px;text-align:right;font-family:monospace;font-size:12px;font-weight:600;color:#fff">'+fmt(ptotalCost)+'</td>'
+    +'<td style="padding:8px 10px;text-align:right;font-family:monospace;font-size:12px;font-weight:600;color:#fff">'+fmt(ptotalCur)+'</td>'
+    +'<td style="padding:8px 10px;text-align:right;font-family:monospace;font-size:12px;font-weight:600;color:'+(ptotalGP>=0?'#2ecc8a':'#e05252')+'">'+(ptotalGP>=0?'+':'')+ptotalGP.toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0})+'</td>'
+    +'<td style="padding:8px 10px;text-align:right;font-family:monospace;font-size:12px;font-weight:600;color:'+(ptotalPct>=0?'#2ecc8a':'#e05252')+'">'+(ptotalPct>=0?'+':'')+ptotalPct.toFixed(2)+'%</td>'
+    +'</tr></tfoot></table>'
+    +'</div>'
+
+    // ── PAGE 3: INFLOWS (only if data exists) ──
+    +(STATE.inflows.length?
+      '<div class="page" style="page-break-after:auto">'
+      +'<div style="margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #1c2d50">'
+      +'<div style="font-size:16px;font-weight:600;color:#fff">Capital Depositado al Período</div>'
+      +'<div style="font-size:11px;color:#607090;margin-top:2px">Cada ingreso convertido a USD al MEP del día del depósito</div></div>'
+      +'<table><thead><tr>'
+      +'<th>Fecha</th><th>Descripción</th><th class="r">Monto Original</th><th class="r">MEP utilizado</th><th class="r">Equivalente USD</th>'
+      +'</tr></thead><tbody>'+inflowRows+'</tbody>'
+      +'<tfoot><tr style="background:#111d36;border-top:2px solid #1a6ef5">'
+      +'<td colspan="4" style="padding:8px 10px;font-weight:600;font-size:12px;color:#fff">TOTAL CAPITAL INVERTIDO</td>'
+      +'<td style="padding:8px 10px;text-align:right;font-family:monospace;font-size:12px;font-weight:600;color:#fff">'+fmt(totalInv)+'</td>'
+      +'</tr></tfoot></table>'
+      +'<div style="margin-top:32px;padding:16px;background:#0d1526;border:1px solid #1c2d50;border-left:3px solid #f0b429;border-radius:8px">'
+      +'<div style="font-size:10px;color:#f0b429;font-weight:600;margin-bottom:6px">NOTA METODOLÓGICA</div>'
+      +'<div style="font-size:11px;color:#607090;line-height:1.7">'
+      +'Los depósitos en USD se toman al valor nominal. Los depósitos en ARS se convierten al tipo de cambio dólar MEP (precio compra) del día del depósito, obtenido de ArgentinaDatos API. '
+      +'El valor actual de la cartera puede diferir del resumen de AdCap por diferencia de fecha del reporte y MEP de referencia utilizado por cada sistema.'
+      +'</div></div>'
+      +'<div style="text-align:center;margin-top:24px;font-size:9px;color:#2a3a60">'
+      +'InTrade Capital · Monitor de Cartera · Generado el '+today+'</div>'
+      +'</div>'
+    :'')
+    +'</body></html>';
+
+  var w=window.open('','_blank','width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(function(){ w.print(); },800);
+}
+
+function resetDash(){
+  bufVal=null; bufRF=null; bufMov=null; bufCta=null;
+  ['val','rf','mov'].forEach(function(id){
+    var dn=document.getElementById('dn-'+id);
+    var dz=document.getElementById('dz-'+id);
+    var fi=document.getElementById('fi-'+id);
+    if(dn) dn.style.display='none';
+    if(dz) dz.classList.remove('loaded','over','opt-loaded');
+    if(fi) fi.value=''; // allow re-uploading the same file
+  });
+  document.getElementById('inp-client').value='';
+  document.getElementById('btn-gen').disabled=true;
+  document.getElementById('upload-status').textContent='Cargá la Valuación y Movimientos para continuar.';
+  var warn=document.getElementById('mep-warn');
+  if(warn) warn.style.display='none';
+  document.getElementById('upload-screen').style.display='block';
+  document.getElementById('dashboard').style.display='none';
+}
+
+(async function(){
+  await fetchCurrentMep();
+  document.getElementById('btn-mep-ref').disabled=false;
+})();
+</script>
+</body>
+</html>
