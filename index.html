@@ -976,10 +976,10 @@ function parseMov(buffer){
         inflows.push({fecha:liq,concepto:'Depósito Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
       }
     } else if(isWithdrawal&&neto<0){
+      // Only count USD withdrawals as real extractions.
+      // ARS "Comprobante de Pago" is the ARS leg of a MEP purchase (internal FX), not an external withdrawal.
       if(isUSD){
         inflows.push({fecha:liq,concepto:'Extracción USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
-      } else {
-        inflows.push({fecha:liq,concepto:'Extracción Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
       }
     }
   });
