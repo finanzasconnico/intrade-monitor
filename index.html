@@ -429,7 +429,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
           <div class="section-title">Ingresos de Capital al Período</div>
           <div class="section-sub">Depósitos convertidos a USD al MEP del día · Los depósitos en ARS son editables</div>
         </div>
-        <div class="section-badge" id="inflow-badge">—</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="section-badge" id="inflow-badge">—</div>
+          <button class="btn-top" onclick="addManualExtraction()" title="Agregar extracción ARS manual" style="font-size:11px;padding:4px 10px">+ Extracción ARS</button>
+        </div>
       </div>
       <div class="warn-box" id="mep-warn">⚠ <strong>Verificá los MEP históricos.</strong> Si el dato automático no coincide con el real, editá el campo directamente — el total se recalcula al instante.</div>
       <div style="overflow-x:auto">
@@ -954,8 +957,6 @@ function parseMov(buffer){
   var inflows=[], lastDate='';
   var clientHint=sn.replace(/\d{2}-\d{2}-\d{4}/g,'').replace(/[\s_\-]+/g,' ').trim();
 
-  // First pass: collect all relevant rows
-  var raw=[];
   rows.forEach(function(r){
     var liq=String(r['Liquidación']||r['Liquidacion']||'').trim();
     if(liq) lastDate=liq;
@@ -967,32 +968,16 @@ function parseMov(buffer){
     var isWithdrawal=tipo.includes('comprobante de pago');
     if(!isDeposit&&!isWithdrawal) return;
     var isUSD=mda==='USD D'||mda==='USD'||mda.toLowerCase().includes('usd');
-    raw.push({fecha:liq,tipo:tipo,isDeposit:isDeposit,isWithdrawal:isWithdrawal,isUSD:isUSD,neto:neto,inst:inst});
-  });
-
-  // Build a set of dates that have a USD Recibo de Cobro — these are MEP purchase dates
-  // An ARS Comprobante de Pago on the same date is the ARS leg of that MEP purchase (internal FX)
-  var mepPurchaseDates={};
-  raw.forEach(function(r){
-    if(r.isDeposit&&r.isUSD&&r.neto>0) mepPurchaseDates[r.fecha]=true;
-  });
-
-  // Second pass: build inflows
-  raw.forEach(function(r){
-    if(r.isDeposit&&r.neto>0){
-      if(r.isUSD){
-        inflows.push({fecha:r.fecha,concepto:'Depósito USD',moneda:'USD',monto:r.neto,mep:1,mepSource:'usd',mepVerified:true});
+    if(isDeposit&&neto>0){
+      if(isUSD){
+        inflows.push({fecha:liq,concepto:'Depósito USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
       } else {
-        inflows.push({fecha:r.fecha,concepto:'Depósito Pesos',moneda:'ARS',monto:r.neto,mep:0,mepSource:'pendiente',mepVerified:false});
+        inflows.push({fecha:liq,concepto:'Depósito Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
       }
-    } else if(r.isWithdrawal&&r.neto<0){
-      if(r.isUSD){
-        inflows.push({fecha:r.fecha,concepto:'Extracción USD',moneda:'USD',monto:r.neto,mep:1,mepSource:'usd',mepVerified:true});
-      } else if(!mepPurchaseDates[r.fecha]){
-        // ARS withdrawal with no paired USD receipt on same date → real ARS extraction
-        inflows.push({fecha:r.fecha,concepto:'Extracción Pesos',moneda:'ARS',monto:r.neto,mep:0,mepSource:'pendiente',mepVerified:false});
-      }
-      // else: ARS Comprobante de Pago on a MEP purchase date → internal FX, skip
+    } else if(isWithdrawal&&neto<0&&isUSD){
+      // Only USD withdrawals are auto-detected. ARS Comprobante de Pago is typically
+      // the ARS leg of a MEP purchase (internal FX). Real ARS extractions can be added manually.
+      inflows.push({fecha:liq,concepto:'Extracción USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
     }
   });
   return {inflows:inflows,lastDate:lastDate,clientHint:clientHint};
@@ -1485,6 +1470,22 @@ function renderInflows(){
   var badge=nDeposits+' depósito'+(nDeposits!==1?'s':'');
   if(nWithdrawals>0) badge+=' · '+nWithdrawals+' extracción'+(nWithdrawals!==1?'es':'');
   document.getElementById('inflow-badge').textContent=badge;
+}
+
+function addManualExtraction(){
+  var monto=prompt('Monto de la extracción en ARS (sin signo, ej: 1500000):');
+  if(!monto) return;
+  var n=parseFloat(String(monto).replace(/\./g,'').replace(',','.'));
+  if(!n||n<=0){alert('Monto inválido');return;}
+  var fecha=prompt('Fecha de la extracción (DD/MM/AAAA):','');
+  if(!fecha) return;
+  var mepVal=prompt('Tipo de cambio MEP de ese día (ej: 1499):','');
+  if(!mepVal) return;
+  var mep=parseFloat(String(mepVal).replace(',','.'));
+  if(!mep||mep<100){alert('MEP inválido');return;}
+  STATE.inflows.push({fecha:fecha,concepto:'Extracción Pesos (manual)',moneda:'ARS',monto:-n,mep:mep,mepSource:'Manual',mepVerified:true});
+  renderInflows();
+  renderHero(STATE.mepMid||1470);
 }
 
 function updateInflowMep(idx,val){
