@@ -954,6 +954,8 @@ function parseMov(buffer){
   var inflows=[], lastDate='';
   var clientHint=sn.replace(/\d{2}-\d{2}-\d{4}/g,'').replace(/[\s_\-]+/g,' ').trim();
 
+  // First pass: collect all relevant rows
+  var raw=[];
   rows.forEach(function(r){
     var liq=String(r['Liquidación']||r['Liquidacion']||'').trim();
     if(liq) lastDate=liq;
@@ -961,26 +963,36 @@ function parseMov(buffer){
     var mda=String(r['Mda']||r['Moneda']||'').trim();
     var inst=String(r['Instrumento']||'').trim().toLowerCase();
     var neto=parseNum(r['Neto']||0);
-
     var isDeposit=tipo.includes('recibo de cobro');
     var isWithdrawal=tipo.includes('comprobante de pago');
     if(!isDeposit&&!isWithdrawal) return;
-
     var isUSD=mda==='USD D'||mda==='USD'||mda.toLowerCase().includes('usd');
-    var isARS=!isUSD&&(inst.includes('peso')||inst.includes('dolar')||inst==='');
+    raw.push({fecha:liq,tipo:tipo,isDeposit:isDeposit,isWithdrawal:isWithdrawal,isUSD:isUSD,neto:neto,inst:inst});
+  });
 
-    if(isDeposit&&neto>0){
-      if(isUSD){
-        inflows.push({fecha:liq,concepto:'Depósito USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
-      } else if(isARS){
-        inflows.push({fecha:liq,concepto:'Depósito Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
+  // Build a set of dates that have a USD Recibo de Cobro — these are MEP purchase dates
+  // An ARS Comprobante de Pago on the same date is the ARS leg of that MEP purchase (internal FX)
+  var mepPurchaseDates={};
+  raw.forEach(function(r){
+    if(r.isDeposit&&r.isUSD&&r.neto>0) mepPurchaseDates[r.fecha]=true;
+  });
+
+  // Second pass: build inflows
+  raw.forEach(function(r){
+    if(r.isDeposit&&r.neto>0){
+      if(r.isUSD){
+        inflows.push({fecha:r.fecha,concepto:'Depósito USD',moneda:'USD',monto:r.neto,mep:1,mepSource:'usd',mepVerified:true});
+      } else {
+        inflows.push({fecha:r.fecha,concepto:'Depósito Pesos',moneda:'ARS',monto:r.neto,mep:0,mepSource:'pendiente',mepVerified:false});
       }
-    } else if(isWithdrawal&&neto<0){
-      // Only count USD withdrawals as real extractions.
-      // ARS "Comprobante de Pago" is the ARS leg of a MEP purchase (internal FX), not an external withdrawal.
-      if(isUSD){
-        inflows.push({fecha:liq,concepto:'Extracción USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
+    } else if(r.isWithdrawal&&r.neto<0){
+      if(r.isUSD){
+        inflows.push({fecha:r.fecha,concepto:'Extracción USD',moneda:'USD',monto:r.neto,mep:1,mepSource:'usd',mepVerified:true});
+      } else if(!mepPurchaseDates[r.fecha]){
+        // ARS withdrawal with no paired USD receipt on same date → real ARS extraction
+        inflows.push({fecha:r.fecha,concepto:'Extracción Pesos',moneda:'ARS',monto:r.neto,mep:0,mepSource:'pendiente',mepVerified:false});
       }
+      // else: ARS Comprobante de Pago on a MEP purchase date → internal FX, skip
     }
   });
   return {inflows:inflows,lastDate:lastDate,clientHint:clientHint};
