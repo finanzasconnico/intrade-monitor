@@ -959,14 +959,26 @@ function parseMov(buffer){
     var mda=String(r['Mda']||r['Moneda']||'').trim();
     var inst=String(r['Instrumento']||'').trim().toLowerCase();
     var neto=parseNum(r['Neto']||0);
-    if(neto<=0||!(tipo==='recibo de cobro'||tipo.includes('recibo de cobro'))) return;
+
+    var isDeposit=tipo.includes('recibo de cobro');
+    var isWithdrawal=tipo.includes('comprobante de pago');
+    if(!isDeposit&&!isWithdrawal) return;
 
     var isUSD=mda==='USD D'||mda==='USD'||mda.toLowerCase().includes('usd');
-    var isARSDeposit=!isUSD&&(inst.includes('peso')||inst.includes('dolar')||inst==='');
-    if(isUSD){
-      inflows.push({fecha:liq,concepto:'Recibo de Cobro',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
-    } else if(isARSDeposit){
-      inflows.push({fecha:liq,concepto:'Depósito Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
+    var isARS=!isUSD&&(inst.includes('peso')||inst.includes('dolar')||inst==='');
+
+    if(isDeposit&&neto>0){
+      if(isUSD){
+        inflows.push({fecha:liq,concepto:'Depósito USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
+      } else if(isARS){
+        inflows.push({fecha:liq,concepto:'Depósito Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
+      }
+    } else if(isWithdrawal&&neto<0){
+      if(isUSD){
+        inflows.push({fecha:liq,concepto:'Extracción USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
+      } else {
+        inflows.push({fecha:liq,concepto:'Extracción Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
+      }
     }
   });
   return {inflows:inflows,lastDate:lastDate,clientHint:clientHint};
@@ -1192,7 +1204,11 @@ function renderHero(mep){
     'Capital depositado vs. valor actual de cartera + liquidez · MEP hoy $'+Math.round(mep).toLocaleString('es-AR');
 
   document.getElementById('h-inv').textContent=fmt(totalInv,0);
-  document.getElementById('h-inv-sub').textContent=STATE.inflows.length+' depósito'+(STATE.inflows.length!==1?'s':'')+' al período';
+  var nDep=STATE.inflows.filter(function(f){return f.monto>0;}).length;
+  var nExt=STATE.inflows.filter(function(f){return f.monto<0;}).length;
+  var invSub=nDep+' depósito'+(nDep!==1?'s':'')+' al período';
+  if(nExt>0) invSub+=' · '+nExt+' extracción'+(nExt!==1?'es':'');
+  document.getElementById('h-inv-sub').textContent=invSub;
 
   document.getElementById('h-cur').textContent=totalCur>0?fmt(totalCur,0):'—';
   var subParts=[];
@@ -1419,9 +1435,12 @@ function renderPositions(mep){
 
 function renderInflows(){
   var html='',total=0;
+  var nDeposits=0,nWithdrawals=0;
   STATE.inflows.forEach(function(f,idx){
     var usd=f.moneda==='USD'?f.monto:f.monto/f.mep;
     total+=usd;
+    var isOut=usd<0;
+    if(isOut) nWithdrawals++; else nDeposits++;
     var mTxt=f.moneda==='USD'?('<span class="mono">'+fmt(f.monto)+'</span>'):('<span class="mono">'+fmtARS(f.monto)+'</span>');
     var mepCell;
     if(f.moneda==='USD'){
@@ -1429,22 +1448,25 @@ function renderInflows(){
     } else {
       var srcCls=f.mepVerified?'verified':'';
       var srcTxt=f.mepVerified?'✓ '+f.mepSource:'⚠ Estimado — verificar';
-      mepCell='<input class="mep-edit-inp" type="number" value="'+Math.round(f.mep)+'" min="500" max="5000" step="1" '
+      mepCell='<input class="mep-edit-inp" type="number" value="'+Math.round(Math.abs(f.mep))+'" min="500" max="5000" step="1" '
         +'onchange="updateInflowMep('+idx+',this.value)">'
         +'<span class="mep-src-lbl '+srcCls+'">'+srcTxt+'</span>';
     }
-    html+='<tr>'
+    var usdCls=isOut?'c-red':'c-green';
+    html+='<tr style="'+(isOut?'opacity:0.85':'')+'">'
       +'<td class="muted">'+f.fecha+'</td>'
-      +'<td>'+f.concepto+'</td>'
+      +'<td><span style="color:'+(isOut?'var(--danger)':'inherit')+'">'+f.concepto+'</span></td>'
       +'<td class="r">'+mTxt+'</td>'
       +'<td class="r" style="min-width:140px">'+mepCell+'</td>'
-      +'<td class="r c-green mono" id="iusd-'+idx+'">'+fmt(usd)+'</td>'
+      +'<td class="r '+usdCls+' mono" id="iusd-'+idx+'">'+fmt(usd)+'</td>'
       +'</tr>';
   });
-  if(!html) html='<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">No se encontraron ingresos de capital en el archivo.</td></tr>';
+  if(!html) html='<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">No se encontraron movimientos de capital en el archivo.</td></tr>';
   document.getElementById('inflow-tbody').innerHTML=html;
   document.getElementById('inflow-total').textContent=fmt(total);
-  document.getElementById('inflow-badge').textContent=STATE.inflows.length+' depósito'+(STATE.inflows.length!==1?'s':'');
+  var badge=nDeposits+' depósito'+(nDeposits!==1?'s':'');
+  if(nWithdrawals>0) badge+=' · '+nWithdrawals+' extracción'+(nWithdrawals!==1?'es':'');
+  document.getElementById('inflow-badge').textContent=badge;
 }
 
 function updateInflowMep(idx,val){
