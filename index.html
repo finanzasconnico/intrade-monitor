@@ -137,6 +137,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .liq-row td{background:rgba(240,180,41,.03)!important}
 .ticker{display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-size:10px;font-family:var(--mono);color:var(--blue-light);font-weight:700;margin-right:6px;white-space:nowrap}
 .ast-sub{font-size:9px;color:var(--text-muted);margin-top:2px}
+.fci-hint{display:inline-block;margin-left:8px;font-size:9px;color:#f0b429;border:1px solid rgba(240,180,41,.35);border-radius:3px;padding:1px 6px;cursor:help;opacity:.8;white-space:nowrap}
+.fci-hint:hover{opacity:1}
 .pbar{display:inline-block;width:50px;height:3px;background:rgba(255,255,255,.05);border-radius:2px;vertical-align:middle;overflow:hidden;margin-left:5px}
 .pbar-fill{height:100%;border-radius:2px}
 .no-cost{color:var(--text-dim);font-size:10px;font-style:italic}
@@ -1341,11 +1343,15 @@ function renderPositions(mep){
       var hasOps=p.codigo&&STATE.boletosMap&&(STATE.boletosMap[p.codigo]||
         Object.values(STATE.boletosMap).find(function(b){return b.instrumento&&p.instrumento&&b.instrumento.slice(0,16)===p.instrumento.slice(0,16);}));
       var expandable=hasOps&&hasOps.ops&&hasOps.ops.length>0;
+      var fciHint='';
+      if(p.isFCI&&!p.hasHistory&&!savedPPP){
+        fciHint='<span class="fci-hint" title="Para ver el rendimiento real: en AdCap ir a Valuación Final → Rendimientos, copiar y pegar toda la fila de este fondo aquí">💡 Ver rendimiento</span>';
+      }
       html+='<tr class="pos-row'+(expandable?' expandable':'')+'" id="'+rowId+'"'
         +(expandable?' onclick="toggleAudit(\''+rowId+'\')"':'')+'>'
         +'<td><span class="ticker">'+p.ticker+'</span>'+instShort
         +(expandable?'<span class="expand-icon">▶</span>':'')
-        +'<div class="ast-sub">'+cat+(p.isFCI?' · Valor Cuotaparte':'')+'</div></td>'
+        +'<div class="ast-sub">'+cat+(p.isFCI?' · Valor Cuotaparte':'')+fciHint+'</div></td>'
         +'<td class="r muted">'+cantFmt+'</td>'
         +'<td class="r">'+pCmpTxt+'</td>'
         +'<td class="r">'+pActTxt+'</td>'
