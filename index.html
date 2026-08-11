@@ -1637,7 +1637,7 @@ function renderPositions(mep){
     return s+(c.tipo==='ARS'?c.saldo/mep:c.saldo);
   },0);
   var grandTotal=totalCur+cashUSD;
-  var grandInv=totalCost; // cost basis stays the same (cash has no cost basis)
+  var grandInv=totalCost+cashUSD; // cash counts as cost = value (no gain/loss)
   var grandGP=grandTotal-grandInv;
   var grandPct=grandInv>0?(grandGP/grandInv*100):0;
   html+='<tr style="background:#0a1628;border-top:2px solid #1a6ef5">'
