@@ -422,6 +422,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
     </div>
 
+    <!-- ANÁLISIS DE RENTABILIDAD REALIZADA -->
+    <div class="section" id="realized-section" style="display:none"></div>
+
     <!-- INGRESOS DE CAPITAL -->
     <div class="section">
       <div class="section-hdr">
@@ -1043,6 +1046,11 @@ function parseMov(buffer){
     if((isBuy||isSell)&&instRaw&&neto!==0){
       var cant=parseNum(r['Cantidad']||r['Cant.']||r['Cant']||0);
       var precio=parseNum(r['Precio']||r['Precio Unitario']||r['Cotización']||r['Cotizacion']||0);
+      var comisionCol=parseNum(r['Comisión']||r['Comision']||r['Comisión ']||0);
+      // Estimate commission from neto vs precio×cant when column not available
+      var brutoBruto=precio>0&&cant>0?precio*Math.abs(cant):0;
+      var comisionEst=brutoBruto>0?Math.abs(Math.abs(neto)-brutoBruto):0;
+      var comision=comisionCol>0?comisionCol:(comisionEst<Math.abs(neto)*0.05?comisionEst:0);
       var key=instRaw.toLowerCase().replace(/\s+/g,' ').slice(0,30);
       if(!trades[key]) trades[key]={instrumento:instRaw,ops:[]};
       trades[key].ops.push({
@@ -1050,8 +1058,9 @@ function parseMov(buffer){
         cant:isBuy?Math.abs(cant):-Math.abs(cant),
         precio:precio,
         neto:Math.abs(neto),
+        comision:comision, // ARS commission amount
         isUSD:isUSD,
-        mep:0, mepSrc:'', usd:0 // filled in generate() after historical MEP fetch
+        mep:0, mepSrc:'', usd:0, comisionUSD:0 // filled in generate()
       });
     }
   });
@@ -1256,13 +1265,14 @@ async function generate(){
     Object.values(allMovTrades).forEach(function(t){
       t.ops.forEach(function(op){
         if(op.isUSD){
-          op.mep=1; op.mepSrc='USD directo'; op.usd=op.neto;
+          op.mep=1; op.mepSrc='USD directo'; op.usd=op.neto; op.comisionUSD=op.comision||0;
         } else {
           var mep=getMepForDate(op.fecha)||STATE.mepMid||1500;
           var iso=normalizeDate(op.fecha);
           op.mep=mep;
           op.mepSrc=STATE.historicalMep&&STATE.historicalMep[iso]?'ArgentinaDatos':STATE.mepFromBoletos&&STATE.mepFromBoletos[iso]?'Boletos':'Estimado';
           op.usd=op.neto/mep;
+          op.comisionUSD=(op.comision||0)/mep;
         }
       });
       t.ops.sort(function(a,b){return a.fecha.localeCompare(b.fecha);});
@@ -1356,6 +1366,7 @@ function render(){
   renderHero(mep);
   renderPositions(mep);
   renderInflows();
+  renderRealizedAnalysis();
 }
 
 function getPortfolioUSD(mep){
@@ -1373,6 +1384,8 @@ function renderHero(mep){
   var totalInv=STATE.inflows.reduce(function(s,f){return s+(f.moneda==='USD'?f.monto:f.monto/f.mep);},0);
   var port=getPortfolioUSD(mep);
   var totalCur=port.total;
+  STATE.heroCapital=totalInv;
+  STATE.heroVal=totalCur;
   var gp=totalCur-totalInv;
   var pct=totalInv>0?(gp/totalInv*100):0;
 
@@ -1453,6 +1466,172 @@ function confirmPPP(ticker,isUSD){
   // Reset the pppNativo on the position so it re-reads from localStorage
   STATE.positions.forEach(function(p){ if(p.ticker===ticker){ p.pppNativo=0; p.hasHistory=false; p.costoTotalUSD=0; } });
   renderPositions(STATE.mepMid);
+}
+
+// ═══════════════════════════════════════
+// REALIZED P&L ANALYSIS
+// ═══════════════════════════════════════
+function buildRealizedPnL(){
+  var movTrades=STATE.movTrades||{};
+  var closedPositions=[];
+  var totalComisionUSD=0;
+
+  Object.keys(movTrades).forEach(function(key){
+    var t=movTrades[key];
+    var ops=t.ops.slice().sort(function(a,b){return a.fecha.localeCompare(b.fecha);});
+    var buyQueue=[]; // FIFO lots: {cant, usdPerUnit, fecha}
+    var sells=[];
+    var hasSell=false;
+    var instrComision=0;
+
+    ops.forEach(function(op){
+      instrComision+=(op.comisionUSD||0);
+      totalComisionUSD+=(op.comisionUSD||0);
+      if(op.tipo==='compra'){
+        var usdPerUnit=Math.abs(op.cant)>0?op.usd/Math.abs(op.cant):0;
+        buyQueue.push({cant:Math.abs(op.cant),usdPerUnit:usdPerUnit,fecha:op.fecha});
+      } else if(op.tipo==='venta'){
+        hasSell=true;
+        var sellCant=Math.abs(op.cant);
+        var sellUSD=op.usd;
+        var costUSD=0;
+        var remaining=sellCant;
+        // FIFO dequeue
+        while(remaining>0.0001&&buyQueue.length>0){
+          var lot=buyQueue[0];
+          var used=Math.min(lot.cant,remaining);
+          costUSD+=used*lot.usdPerUnit;
+          lot.cant-=used;
+          remaining-=used;
+          if(lot.cant<=0.0001) buyQueue.shift();
+        }
+        var pnl=sellUSD-costUSD;
+        sells.push({fecha:op.fecha,cant:sellCant,sellUSD:sellUSD,costUSD:costUSD,pnl:pnl,mep:op.mep,mepSrc:op.mepSrc});
+      }
+    });
+
+    if(hasSell){
+      var remainingCant=buyQueue.reduce(function(s,l){return s+l.cant;},0);
+      var totalSellUSD=sells.reduce(function(s,v){return s+v.sellUSD;},0);
+      var totalCostUSD=sells.reduce(function(s,v){return s+v.costUSD;},0);
+      var totalPnL=sells.reduce(function(s,v){return s+v.pnl;},0);
+      closedPositions.push({
+        instrumento:t.instrumento,
+        sells:sells,
+        totalSellUSD:totalSellUSD,
+        totalCostUSD:totalCostUSD,
+        totalPnL:totalPnL,
+        isFullyClosed:remainingCant<=0.1,
+        remainingCant:remainingCant,
+        comisionUSD:instrComision
+      });
+    }
+  });
+
+  closedPositions.sort(function(a,b){return Math.abs(b.totalPnL)-Math.abs(a.totalPnL);});
+  return {closedPositions:closedPositions,totalComisionUSD:totalComisionUSD};
+}
+
+function renderRealizedAnalysis(){
+  var el=document.getElementById('realized-section');
+  if(!el) return;
+  var mep=STATE.mepMid||1500;
+  var data=buildRealizedPnL();
+  var closed=data.closedPositions;
+  var totalComision=data.totalComisionUSD;
+
+  if(!closed.length&&totalComision===0){
+    el.style.display='none'; return;
+  }
+  el.style.display='block';
+
+  var totalPnLClosed=closed.reduce(function(s,p){return s+p.totalPnL;},0);
+  // Hero capital vs table cost
+  var heroCapital=STATE.heroCapital||0;
+  var tableCost=(STATE.positions||[]).reduce(function(s,p){return s+(p.costoTotalUSD||0);},0);
+  var cashUSD=(STATE.cashItems||[]).reduce(function(s,c){return s+(c.tipo==='ARS'?c.saldo/mep:c.saldo);},0);
+  var tableValue=(STATE.positions||[]).reduce(function(s,p){
+    return s+(p.valorARS>0?p.valorARS/mep:p.valorUSD||0);
+  },0);
+  var unrealizedPnL=tableValue-tableCost;
+  var gap=heroCapital-(tableCost+cashUSD);
+
+  function pnlC(v){return v>=0?'#2ecc8a':'#e05252';}
+  function pnlS(v){return (v>=0?'+':'')+fmt(v);}
+
+  // Summary cards
+  var sumHtml='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px">'
+    +card('G/P No Realizada (posiciones abiertas)',pnlS(unrealizedPnL),pnlC(unrealizedPnL),'Diferencia entre valor actual y costo de posiciones abiertas')
+    +card('G/P Realizada (ventas/rescates)',pnlS(totalPnLClosed),pnlC(totalPnLClosed),'P&amp;L de posiciones ya vendidas, FIFO, MEP histórico')
+    +card('Comisiones estimadas','-'+fmt(totalComision),'#e05252','Comisiones + impuestos estimados en USD al MEP de cada operación')
+    +card('Diferencia hero vs cartera',pnlS(-gap),'#607090','Capital depositado menos costo actual de posiciones + efectivo. Incluye posiciones cerradas y comisiones.')
+    +'</div>';
+
+  function card(label,val,color,tip){
+    return '<div title="'+tip+'" style="flex:1;min-width:160px;background:#0d1f3c;border:1px solid #1c2d50;border-radius:8px;padding:12px 16px">'
+      +'<div style="font-size:9px;color:#607090;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">'+label+'</div>'
+      +'<div style="font-size:18px;font-weight:700;color:'+color+';font-family:var(--mono)">USD '+val+'</div>'
+      +'</div>';
+  }
+
+  // Closed positions table
+  var rowsHtml='';
+  if(closed.length){
+    rowsHtml=closed.map(function(p){
+      var statusBadge=p.isFullyClosed
+        ?'<span style="font-size:9px;background:#1a2e50;color:#607090;border-radius:3px;padding:1px 5px;margin-left:4px">CERRADA</span>'
+        :'<span style="font-size:9px;background:#1a3020;color:#2ecc8a;border-radius:3px;padding:1px 5px;margin-left:4px">PARCIAL</span>';
+      var lastSell=p.sells[p.sells.length-1];
+      var pnlColor=pnlC(p.totalPnL);
+      var pct=p.totalCostUSD>0?(p.totalPnL/p.totalCostUSD*100):0;
+      return '<tr style="border-bottom:1px solid #1c2d50">'
+        +'<td style="padding:6px 10px;font-size:11px;color:#e8edf8">'+p.instrumento.slice(0,36)+statusBadge+'</td>'
+        +'<td style="padding:6px 10px;font-size:11px;color:#8aa4c8;font-family:var(--mono)">'+lastSell.fecha+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-size:11px;color:#8aa4c8">'+fmt(p.totalCostUSD)+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-size:11px;color:#e8edf8">'+fmt(p.totalSellUSD)+'</td>'
+        +'<td style="padding:6px 10px;text-align:right;font-family:var(--mono);font-size:11px;font-weight:700;color:'+pnlColor+'"><b>'+(p.totalPnL>=0?'+':'')+fmt(p.totalPnL)+'</b></td>'
+        +'<td style="padding:6px 10px;text-align:right;font-size:11px;color:'+pnlColor+'">'+(pct>=0?'+':'')+pct.toFixed(2)+'%</td>'
+        +'</tr>';
+    }).join('');
+  }
+
+  // Reconciliation bridge
+  var heroGP=((STATE.heroVal||0)-(heroCapital||0));
+  var bridgeHtml='<div style="margin-top:18px;background:#0d1f3c;border:1px solid #1c2d50;border-radius:8px;padding:14px 18px">'
+    +'<div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d8bff;margin-bottom:12px">Reconciliación: Capital depositado → G/P total</div>'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +bRow('Capital depositado (hero)',heroCapital,'#8aa4c8',false)
+    +bRow('— Costo posiciones actuales',-tableCost,'#8aa4c8',false)
+    +bRow('— Liquidez actual',-cashUSD,'#8aa4c8',false)
+    +bRow('= Diferencia (comisiones + pos. cerradas)',-(gap),'#e0b44a',false)
+    +'<tr><td colspan="2" style="padding:4px 0"><hr style="border:none;border-top:1px solid #1c2d50"/></td></tr>'
+    +bRow('G/P no realizada (posiciones abiertas)',unrealizedPnL,pnlC(unrealizedPnL),true)
+    +bRow('G/P realizada (ventas FIFO)',totalPnLClosed,pnlC(totalPnLClosed),true)
+    +bRow('Comisiones estimadas',-totalComision,'#e05252',true)
+    +bRow('G/P total (hero)',heroGP,pnlC(heroGP),true)
+    +'</table></div>';
+
+  function bRow(label,val,color,bold){
+    return '<tr><td style="padding:4px 0;color:#8aa4c8;'+(bold?'font-weight:700;color:#e8edf8':'')+'">'+label+'</td>'
+      +'<td style="text-align:right;font-family:var(--mono);color:'+color+';'+(bold?'font-weight:700':'')+'">USD '+(val>=0?'+':'')+fmt(val)+'</td></tr>';
+  }
+
+  el.innerHTML='<div class="section-hdr"><div>'
+    +'<div class="section-title">Análisis de Rentabilidad Histórica</div>'
+    +'<div class="section-sub">Posiciones cerradas · Comisiones · Reconciliación vs. capital depositado</div>'
+    +'</div></div>'
+    +sumHtml
+    +(closed.length?'<div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d8bff;margin-bottom:8px">Posiciones vendidas / rescatadas</div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="border-bottom:1px solid #1c2d50">'
+      +'<th style="padding:5px 10px;text-align:left;font-size:9px;color:#607090;font-weight:600;text-transform:uppercase">Instrumento</th>'
+      +'<th style="padding:5px 10px;text-align:left;font-size:9px;color:#607090;font-weight:600;text-transform:uppercase">Última venta</th>'
+      +'<th style="padding:5px 10px;text-align:right;font-size:9px;color:#607090;font-weight:600;text-transform:uppercase">Costo USD</th>'
+      +'<th style="padding:5px 10px;text-align:right;font-size:9px;color:#607090;font-weight:600;text-transform:uppercase">Venta USD</th>'
+      +'<th style="padding:5px 10px;text-align:right;font-size:9px;color:#607090;font-weight:600;text-transform:uppercase">G/P USD</th>'
+      +'<th style="padding:5px 10px;text-align:right;font-size:9px;color:#607090;font-weight:600;text-transform:uppercase">%</th>'
+      +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>':'')
+    +bridgeHtml;
 }
 
 function renderPositions(mep){
