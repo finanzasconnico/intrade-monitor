@@ -1547,6 +1547,22 @@ function renderPositions(mep){
     +'<td class="r">'+pctHtml(totalPct)+'</td>'
     +'</tr>';
 
+  // Total cartera including cash
+  var cashUSD=STATE.cashItems.reduce(function(s,c){
+    return s+(c.tipo==='ARS'?c.saldo/mep:c.saldo);
+  },0);
+  var grandTotal=totalCur+cashUSD;
+  var grandInv=totalCost; // cost basis stays the same (cash has no cost basis)
+  var grandGP=grandTotal-grandInv;
+  var grandPct=grandInv>0?(grandGP/grandInv*100):0;
+  html+='<tr style="background:#0a1628;border-top:2px solid #1a6ef5">'
+    +'<td colspan="4" style="font-weight:700;color:#fff;padding:8px 10px;font-size:11px;letter-spacing:.05em">TOTAL CARTERA (incl. liquidez)</td>'
+    +'<td class="r mono" style="font-weight:700;color:#fff">'+fmt(grandInv)+'</td>'
+    +'<td class="r mono" style="font-weight:700;color:#fff">'+fmt(grandTotal)+'</td>'
+    +'<td class="r" style="font-weight:700">'+pnlHtml(grandGP)+'</td>'
+    +'<td class="r" style="font-weight:700">'+pctHtml(grandPct)+'</td>'
+    +'</tr>';
+
   document.getElementById('pos-tbody').innerHTML=html;
   document.getElementById('pos-badge').textContent=STATE.positions.length+' activos'+(STATE.cashItems.length?' + '+STATE.cashItems.length+' liquidez':'');
 }
