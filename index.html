@@ -1063,9 +1063,30 @@ function parseCTACTEMON(buffer){
   return cashItems;
 }
 
+// Returns the weighted historical MEP for an ARS FCI based on its subscription dates.
+// Falls back to today's MEP if no subscription data is available.
+function getFCIWeightedMep(tickerOrInst, fciData){
+  fciData=fciData||STATE.fciData||{};
+  var tl=(tickerOrInst||'').toLowerCase();
+  var fciKey=Object.keys(fciData).find(function(k){
+    var kl=k.toLowerCase();
+    return kl===tl||kl.includes(tl.slice(0,10))||tl.includes(kl.slice(0,10));
+  });
+  if(!fciKey||!fciData[fciKey].subscriptions||!fciData[fciKey].subscriptions.length)
+    return STATE.mepMid||1500;
+  var totalQty=0, weightedMep=0;
+  fciData[fciKey].subscriptions.forEach(function(s){
+    var mep=getMepForDate(s.fecha)||STATE.mepMid||1500;
+    weightedMep+=s.cantidad*mep;
+    totalQty+=s.cantidad;
+  });
+  return totalQty>0?weightedMep/totalQty:STATE.mepMid||1500;
+}
+
 // ── Build positions ──
-function buildPositions(positions, boletosMap, fromValuacion){
+function buildPositions(positions, boletosMap, fromValuacion, fciData){
   boletosMap=boletosMap||{};
+  fciData=fciData||{};
   function getCat(inst, valCat){
     // If coming from Valuación, use its category header to guide classification
     if(valCat){
@@ -1114,8 +1135,11 @@ function buildPositions(positions, boletosMap, fromValuacion){
         precioCompraUSD=p.ppp;
         costoTotalUSD=p.ppp*p.cantidad;
       } else {
-        precioCompraUSD=p.ppp/STATE.mepMid;
-        costoTotalUSD=(p.ppp*p.cantidad)/STATE.mepMid;
+        var mepForCost=cat==='FCI'
+          ?getFCIWeightedMep(p.ticker||p.instrumento, fciData)
+          :STATE.mepMid;
+        precioCompraUSD=p.ppp/mepForCost;
+        costoTotalUSD=(p.ppp*p.cantidad)/mepForCost;
       }
     } else {
       // Fallback: boletos cost basis
@@ -1195,7 +1219,11 @@ async function generate(){
       fromValuacion=false;
     }
 
-    STATE.positions=buildPositions(rawPositions, boletosMap, fromValuacion);
+    var fciData={};
+    if(rf&&rf.fciData) Object.assign(fciData,rf.fciData);
+    if(val&&val.fciData) Object.assign(fciData,val.fciData);
+    STATE.fciData=fciData;
+    STATE.positions=buildPositions(rawPositions, boletosMap, fromValuacion, fciData);
     STATE.boletosMap=boletosMap;
     STATE.cashItems=bufCta?parseCTACTEMON(bufCta):(val?val.cashItems:[]);
     STATE.inflows=mov.inflows;
@@ -1380,7 +1408,7 @@ function renderPositions(mep){
       var savedPPP=parseFloat(localStorage.getItem('ppp_'+p.ticker))||0;
       if(savedPPP>0&&!p.pppNativo){
         p.pppNativo=savedPPP;
-        var mepForCost=STATE.mepMid||1500;
+        var mepForCost=p.isFCI?getFCIWeightedMep(p.ticker||p.instrumento):(STATE.mepMid||1500);
         if(p.isUSDpos){ p.costoTotalUSD=savedPPP*p.cantidad; p.precioCompraUSD=savedPPP; }
         else { p.costoTotalUSD=(savedPPP*p.cantidad)/mepForCost; p.precioCompraUSD=savedPPP/mepForCost; }
         p.hasHistory=true;
