@@ -302,8 +302,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       <div><div class="step-title">Movimientos (.xls)</div><div class="step-hint">Reportes → Movimientos → rango completo desde inicio → Exportar XLS</div></div>
     </div>
     <div class="drop-zone" id="dz-mov">
-      <input type="file" id="fi-mov" accept=".xls,.xlsx" style="display:none" onchange="handleFile(this,'mov')">
-      <div class="drop-txt">📄 Hacé clic o arrastrá Movimientos.xls</div>
+      <input type="file" id="fi-mov" accept=".xls,.xlsx" multiple style="display:none" onchange="handleFileMov(this)">
+      <div class="drop-txt">📄 Hacé clic o arrastrá Movimientos.xls<br><span style="font-size:10px;opacity:.6">Podés cargar varios archivos para cubrir más de 1 año</span></div>
       <div class="drop-name" id="dn-mov"></div>
     </div>
   </div>
@@ -462,7 +462,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ═══════════════════════════════════════
 //  STATE & CONSTANTS
 // ═══════════════════════════════════════
-var bufRF=null, bufMov=null, bufCta=null, bufVal=null;
+var bufRF=null, bufMovs=[], bufCta=null, bufVal=null;
 var STATE={
   mepMid:0, mepFresh:false, mepSource:'',
   historicalMep:{}, mepFromBoletos:{},
@@ -546,38 +546,54 @@ function showToast(msg,ms){
   dz.addEventListener('dragleave',function(){dz.classList.remove('over')});
   dz.addEventListener('drop',function(e){
     e.preventDefault();dz.classList.remove('over');
-    if(e.dataTransfer.files.length) readFile(e.dataTransfer.files[0],id);
+    if(!e.dataTransfer.files.length) return;
+    if(id==='mov'){ addMovFiles(e.dataTransfer.files); }
+    else { readFile(e.dataTransfer.files[0],id); }
   });
   dz.addEventListener('click',function(){document.getElementById('fi-'+id).click()});
 });
 function handleFile(input,id){ if(input.files[0]) readFile(input.files[0],id); }
+function handleFileMov(input){
+  if(input.files.length) addMovFiles(input.files);
+}
+function addMovFiles(fileList){
+  var files=Array.from(fileList);
+  var pending=files.length;
+  files.forEach(function(file){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      bufMovs.push(e.target.result);
+      pending--;
+      if(pending===0){
+        var names=files.map(function(f){return f.name}).join(', ');
+        var dn=document.getElementById('dn-mov');
+        dn.textContent='✓ '+bufMovs.length+' archivo'+(bufMovs.length>1?'s':'')+': '+names;
+        dn.style.display='block';
+        document.getElementById('dz-mov').classList.remove('over');
+        document.getElementById('dz-mov').classList.add('loaded');
+        checkReady();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
 function readFile(file,id){
   var reader=new FileReader();
   reader.onload=function(e){
     if(id==='val') bufVal=e.target.result;
     else if(id==='rf') bufRF=e.target.result;
-    else if(id==='mov') bufMov=e.target.result;
     else bufCta=e.target.result;
     var dn=document.getElementById('dn-'+id);
     dn.textContent='✓ '+file.name; dn.style.display='block';
     var dz=document.getElementById('dz-'+id);
     dz.classList.remove('over');
     dz.classList.add(id==='cta'||id==='rf'?'opt-loaded':'loaded');
-    // Auto-detect client name from movimientos filename
-    if(id==='mov'){
-      var name=file.name.replace(/\.(xls|xlsx)$/i,'')
-        .replace(/movimientos/i,'').replace(/MOVIMIENTOS/,'')
-        .replace(/_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}/,'')
-        .replace(/[\d_\-]+/g,' ').replace(/\s+/g,' ').trim();
-      if(name&&!document.getElementById('inp-client').value)
-        document.getElementById('inp-client').value=name;
-    }
     checkReady();
   };
   reader.readAsArrayBuffer(file);
 }
 function checkReady(){
-  var ok=!!bufVal&&!!bufMov;
+  var ok=!!bufVal&&bufMovs.length>0;
   document.getElementById('btn-gen').disabled=!ok;
   document.getElementById('upload-status').textContent=ok
     ?'✓ Listo. Completá el MEP actual y generá el monitor.'+(bufCta?' (Cuenta Corriente incluida)':'')+(bufRF?' (Renta Financiera incluida)':'')
@@ -1115,7 +1131,22 @@ async function generate(){
   await new Promise(function(r){setTimeout(r,80);});
 
   try{
-    var mov=parseMov(bufMov);
+    // Parse and merge all movimientos files, deduplicate by fecha+monto+concepto
+    var allInflows=[],allLastDate='',allClientHint='';
+    bufMovs.forEach(function(buf){
+      var r=parseMov(buf);
+      allInflows=allInflows.concat(r.inflows);
+      if(r.lastDate>allLastDate) allLastDate=r.lastDate;
+      if(!allClientHint&&r.clientHint) allClientHint=r.clientHint;
+    });
+    var seen={};
+    allInflows=allInflows.filter(function(f){
+      var key=f.fecha+'|'+f.concepto+'|'+Math.round(Math.abs(f.monto));
+      if(seen[key]) return false;
+      seen[key]=true; return true;
+    });
+    allInflows.sort(function(a,b){ return a.fecha.localeCompare(b.fecha); });
+    var mov={inflows:allInflows,lastDate:allLastDate,clientHint:allClientHint};
     var rf=bufRF?parseRentaFinanciera(bufRF):null;
     var val=bufVal?parseValuacion(bufVal):null;
 
@@ -1783,7 +1814,7 @@ function buildPrintReport(){
 }
 
 function resetDash(){
-  bufVal=null; bufRF=null; bufMov=null; bufCta=null;
+  bufVal=null; bufRF=null; bufMovs=[]; bufCta=null;
   ['val','rf','mov'].forEach(function(id){
     var dn=document.getElementById('dn-'+id);
     var dz=document.getElementById('dz-'+id);
