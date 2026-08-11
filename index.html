@@ -318,8 +318,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
     </div>
     <div class="drop-zone" id="dz-rf">
-      <input type="file" id="fi-rf" accept=".xls,.xlsx" style="display:none" onchange="handleFile(this,'rf')">
-      <div class="drop-txt">📋 Hacé clic o arrastrá Renta Financiera.xls (opcional)</div>
+      <input type="file" id="fi-rf" accept=".xls,.xlsx" multiple style="display:none" onchange="handleFileRF(this)">
+      <div class="drop-txt">📋 Hacé clic o arrastrá Renta Financiera.xls (opcional)<br><span style="font-size:10px;opacity:.6">Podés cargar varios archivos para cubrir más de 1 año</span></div>
       <div class="drop-name" id="dn-rf"></div>
     </div>
   </div>
@@ -462,7 +462,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 // ═══════════════════════════════════════
 //  STATE & CONSTANTS
 // ═══════════════════════════════════════
-var bufRF=null, bufMovs=[], bufCta=null, bufVal=null;
+var bufRFs=[], bufMovs=[], bufCta=null, bufVal=null;
 var STATE={
   mepMid:0, mepFresh:false, mepSource:'',
   historicalMep:{}, mepFromBoletos:{},
@@ -548,6 +548,7 @@ function showToast(msg,ms){
     e.preventDefault();dz.classList.remove('over');
     if(!e.dataTransfer.files.length) return;
     if(id==='mov'){ addMovFiles(e.dataTransfer.files); }
+    else if(id==='rf'){ addRFFiles(e.dataTransfer.files); }
     else { readFile(e.dataTransfer.files[0],id); }
   });
   dz.addEventListener('click',function(){document.getElementById('fi-'+id).click()});
@@ -555,6 +556,30 @@ function showToast(msg,ms){
 function handleFile(input,id){ if(input.files[0]) readFile(input.files[0],id); }
 function handleFileMov(input){
   if(input.files.length) addMovFiles(input.files);
+}
+function handleFileRF(input){
+  if(input.files.length) addRFFiles(input.files);
+}
+function addRFFiles(fileList){
+  var files=Array.from(fileList);
+  var pending=files.length;
+  files.forEach(function(file){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      bufRFs.push(e.target.result);
+      pending--;
+      if(pending===0){
+        var names=files.map(function(f){return f.name}).join(', ');
+        var dn=document.getElementById('dn-rf');
+        dn.textContent='✓ '+bufRFs.length+' archivo'+(bufRFs.length>1?'s':'')+': '+names;
+        dn.style.display='block';
+        document.getElementById('dz-rf').classList.remove('over');
+        document.getElementById('dz-rf').classList.add('opt-loaded');
+        checkReady();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
 }
 function addMovFiles(fileList){
   var files=Array.from(fileList);
@@ -581,7 +606,7 @@ function readFile(file,id){
   var reader=new FileReader();
   reader.onload=function(e){
     if(id==='val') bufVal=e.target.result;
-    else if(id==='rf') bufRF=e.target.result;
+    else if(id==='rf') {} // handled by addRFFiles
     else bufCta=e.target.result;
     var dn=document.getElementById('dn-'+id);
     dn.textContent='✓ '+file.name; dn.style.display='block';
@@ -596,7 +621,7 @@ function checkReady(){
   var ok=!!bufVal&&bufMovs.length>0;
   document.getElementById('btn-gen').disabled=!ok;
   document.getElementById('upload-status').textContent=ok
-    ?'✓ Listo. Completá el MEP actual y generá el monitor.'+(bufCta?' (Cuenta Corriente incluida)':'')+(bufRF?' (Renta Financiera incluida)':'')
+    ?'✓ Listo. Completá el MEP actual y generá el monitor.'+(bufCta?' (Cuenta Corriente incluida)':'')+(bufRFs.length?' (Renta Financiera incluida)':'')
     :'Cargá la Valuación y Movimientos para continuar.';
 }
 
@@ -1147,7 +1172,17 @@ async function generate(){
     });
     allInflows.sort(function(a,b){ return a.fecha.localeCompare(b.fecha); });
     var mov={inflows:allInflows,lastDate:allLastDate,clientHint:allClientHint};
-    var rf=bufRF?parseRentaFinanciera(bufRF):null;
+    // Merge all Renta Financiera files — union boletosMap (later file wins on conflict)
+    var rf=null;
+    if(bufRFs.length){
+      rf={positions:[],boletosMap:{},fciData:{}};
+      bufRFs.forEach(function(buf){
+        var r=parseRentaFinanciera(buf);
+        rf.positions=rf.positions.concat(r.positions);
+        Object.assign(rf.boletosMap,r.boletosMap);
+        Object.assign(rf.fciData,r.fciData);
+      });
+    }
     var val=bufVal?parseValuacion(bufVal):null;
 
     var boletosMap=rf?rf.boletosMap:{};
@@ -1814,7 +1849,7 @@ function buildPrintReport(){
 }
 
 function resetDash(){
-  bufVal=null; bufRF=null; bufMovs=[]; bufCta=null;
+  bufVal=null; bufRFs=[]; bufMovs=[]; bufCta=null;
   ['val','rf','mov'].forEach(function(id){
     var dn=document.getElementById('dn-'+id);
     var dz=document.getElementById('dz-'+id);
