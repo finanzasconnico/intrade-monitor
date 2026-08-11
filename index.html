@@ -1008,17 +1008,21 @@ function parseMov(buffer){
   var inflows=[], lastDate='';
   var clientHint=sn.replace(/\d{2}-\d{2}-\d{4}/g,'').replace(/[\s_\-]+/g,' ').trim();
 
+  var trades={}; // keyed by normalized instrument name
+
   rows.forEach(function(r){
     var liq=String(r['Liquidación']||r['Liquidacion']||'').trim();
     if(liq) lastDate=liq;
     var tipo=String(r['Tipo de operación']||r['Tipo de operacion']||'').trim().toLowerCase();
     var mda=String(r['Mda']||r['Moneda']||'').trim();
-    var inst=String(r['Instrumento']||'').trim().toLowerCase();
+    var instRaw=String(r['Instrumento']||'').trim();
+    var inst=instRaw.toLowerCase();
     var neto=parseNum(r['Neto']||0);
+    var isUSD=mda==='USD D'||mda==='USD'||mda.toLowerCase().includes('usd');
+
+    // ── Cash flows ──
     var isDeposit=tipo.includes('recibo de cobro');
     var isWithdrawal=tipo.includes('comprobante de pago');
-    if(!isDeposit&&!isWithdrawal) return;
-    var isUSD=mda==='USD D'||mda==='USD'||mda.toLowerCase().includes('usd');
     if(isDeposit&&neto>0){
       if(isUSD){
         inflows.push({fecha:liq,concepto:'Depósito USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
@@ -1032,8 +1036,26 @@ function parseMov(buffer){
         inflows.push({fecha:liq,concepto:'Extracción Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
       }
     }
+
+    // ── Security trades ──
+    var isBuy=tipo.includes('compra')||tipo.includes('licitac')||tipo.includes('suscri');
+    var isSell=tipo.includes('venta')||tipo.includes('rescate');
+    if((isBuy||isSell)&&instRaw&&neto!==0){
+      var cant=parseNum(r['Cantidad']||r['Cant.']||r['Cant']||0);
+      var precio=parseNum(r['Precio']||r['Precio Unitario']||r['Cotización']||r['Cotizacion']||0);
+      var key=instRaw.toLowerCase().replace(/\s+/g,' ').slice(0,30);
+      if(!trades[key]) trades[key]={instrumento:instRaw,ops:[]};
+      trades[key].ops.push({
+        fecha:liq, tipo:isBuy?'compra':'venta',
+        cant:isBuy?Math.abs(cant):-Math.abs(cant),
+        precio:precio,
+        neto:Math.abs(neto),
+        isUSD:isUSD,
+        mep:0, mepSrc:'', usd:0 // filled in generate() after historical MEP fetch
+      });
+    }
   });
-  return {inflows:inflows,lastDate:lastDate,clientHint:clientHint};
+  return {inflows:inflows,lastDate:lastDate,clientHint:clientHint,trades:trades};
 }
 
 // ── Cuenta Corriente Monetaria ──
@@ -1083,6 +1105,21 @@ function getFCIWeightedMep(tickerOrInst, fciData){
   return totalQty>0?weightedMep/totalQty:STATE.mepMid||1500;
 }
 
+// ── Find movimiento trades for a position (fuzzy match ticker / instrumento) ──
+function findMovTradesForPos(ticker, instrumento){
+  var movTrades=STATE.movTrades||{};
+  var tl=(ticker||'').toLowerCase();
+  var il=(instrumento||'').toLowerCase().replace(/\s+/g,' ');
+  var bestKey=Object.keys(movTrades).find(function(k){
+    if(tl&&tl.length>=3&&k.includes(tl.slice(0,Math.min(tl.length,12)))) return true;
+    if(il&&il.length>=5&&(k.includes(il.slice(0,15))||il.includes(k.slice(0,15)))) return true;
+    return false;
+  });
+  if(!bestKey) return null;
+  var buyOps=movTrades[bestKey].ops.filter(function(o){return o.tipo==='compra';});
+  return buyOps.length?{instrumento:movTrades[bestKey].instrumento,ops:movTrades[bestKey].ops,buyOps:buyOps}:null;
+}
+
 // ── Build positions ──
 function buildPositions(positions, boletosMap, fromValuacion, fciData){
   boletosMap=boletosMap||{};
@@ -1128,8 +1165,17 @@ function buildPositions(positions, boletosMap, fromValuacion, fciData){
       });
     }
 
+    // Look up movimientos trade history for this position
+    var movInfo=findMovTradesForPos(p.ticker, p.instrumento);
+
     var costoTotalUSD, precioCompraUSD, pppNativo=null;
-    if(p.ppp>0){
+    if(movInfo&&movInfo.buyOps.length){
+      // Use sum of historical-MEP-adjusted USD cost from Movimientos
+      var totalUSDfromMovs=movInfo.buyOps.reduce(function(s,o){return s+o.usd;},0);
+      costoTotalUSD=totalUSDfromMovs;
+      precioCompraUSD=p.cantidad>0?totalUSDfromMovs/p.cantidad:0;
+      if(p.ppp>0) pppNativo=p.ppp;
+    } else if(p.ppp>0){
       pppNativo=p.ppp;
       if(isUSDpos){
         precioCompraUSD=p.ppp;
@@ -1156,7 +1202,7 @@ function buildPositions(positions, boletosMap, fromValuacion, fciData){
       cantidad:p.cantidad, valorARS:valorARS, valorUSD:valorUSD,
       costoTotalUSD:costoTotalUSD, precioCompraUSD:precioCompraUSD,
       isFCI:cat==='FCI', pppNativo:pppNativo, isUSDpos:isUSDpos,
-      hasHistory:costoTotalUSD>0,
+      hasHistory:costoTotalUSD>0, movInfo:movInfo||null,
     };
   });
 }
@@ -1182,11 +1228,17 @@ async function generate(){
   try{
     // Parse and merge all movimientos files, deduplicate by fecha+monto+concepto
     var allInflows=[],allLastDate='',allClientHint='';
+    var allMovTrades={};
     bufMovs.forEach(function(buf){
       var r=parseMov(buf);
       allInflows=allInflows.concat(r.inflows);
       if(r.lastDate>allLastDate) allLastDate=r.lastDate;
       if(!allClientHint&&r.clientHint) allClientHint=r.clientHint;
+      // merge trades
+      Object.keys(r.trades||{}).forEach(function(k){
+        if(!allMovTrades[k]) allMovTrades[k]={instrumento:r.trades[k].instrumento,ops:[]};
+        allMovTrades[k].ops=allMovTrades[k].ops.concat(r.trades[k].ops);
+      });
     });
     var seen={};
     allInflows=allInflows.filter(function(f){
@@ -1195,6 +1247,22 @@ async function generate(){
       seen[key]=true; return true;
     });
     allInflows.sort(function(a,b){ return a.fecha.localeCompare(b.fecha); });
+    // Fill historical MEP into each trade op
+    Object.values(allMovTrades).forEach(function(t){
+      t.ops.forEach(function(op){
+        if(op.isUSD){
+          op.mep=1; op.mepSrc='USD directo'; op.usd=op.neto;
+        } else {
+          var mep=getMepForDate(op.fecha)||STATE.mepMid||1500;
+          var iso=normalizeDate(op.fecha);
+          op.mep=mep;
+          op.mepSrc=STATE.historicalMep&&STATE.historicalMep[iso]?'ArgentinaDatos':STATE.mepFromBoletos&&STATE.mepFromBoletos[iso]?'Boletos':'Estimado';
+          op.usd=op.neto/mep;
+        }
+      });
+      t.ops.sort(function(a,b){return a.fecha.localeCompare(b.fecha);});
+    });
+    STATE.movTrades=allMovTrades;
     var mov={inflows:allInflows,lastDate:allLastDate,clientHint:allClientHint};
     // Merge all Renta Financiera files — union boletosMap (later file wins on conflict)
     var rf=null;
@@ -1452,8 +1520,13 @@ function renderPositions(mep){
       var instShort=p.instrumento.replace(/^CEDEAR\s+(ETF\s+)?/i,'').slice(0,46);
 
       var rowId='pos-'+p.ticker.replace(/[^a-z0-9]/gi,'_');
+      // Prefer RF boleto data; fall back to movimientos trades
       var hasOps=p.codigo&&STATE.boletosMap&&(STATE.boletosMap[p.codigo]||
         Object.values(STATE.boletosMap).find(function(b){return b.instrumento&&p.instrumento&&b.instrumento.slice(0,16)===p.instrumento.slice(0,16);}));
+      var auditSource='rf'; // 'rf' = Renta Financiera boletos, 'mov' = Movimientos
+      if(!(hasOps&&hasOps.ops&&hasOps.ops.length>0)&&p.movInfo&&p.movInfo.ops.length>0){
+        hasOps={ops:p.movInfo.ops}; auditSource='mov';
+      }
       var expandable=hasOps&&hasOps.ops&&hasOps.ops.length>0;
       var fciHint='';
       if(p.isFCI&&!p.hasHistory&&!savedPPP){
@@ -1474,38 +1547,43 @@ function renderPositions(mep){
         +'</tr>';
       if(expandable){
         var ops=hasOps.ops;
+        // For movimientos ops: netoARS = op.neto (already abs), precio = op.precio
         var auditRows=ops.map(function(op){
           var srcClass=op.mepSrc==='Estimado'?'est':'ok';
-          var netoARS=op.netoARS?op.netoARS.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+          var netoVal=op.netoARS||op.neto||0;
+          var netoARS=netoVal?netoVal.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
           var precioFmt=op.precio>0?op.precio.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
-          var mepFmt=op.mep.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
-          var usdFmt=(op.usd).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
-          return '<tr>'
-            +'<td class="hl">'+op.fecha+'</td>'
-            +'<td>'+op.cant.toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:4})+'</td>'
+          var mepFmt=(op.mep||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+          var usdFmt=(op.usd||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+          var tipoLabel=op.tipo==='venta'?'<span style="color:#e05252;font-size:9px;margin-left:4px">VENTA</span>':'';
+          return '<tr'+(op.tipo==='venta'?' style="opacity:.6"':'')+'>'
+            +'<td class="hl">'+op.fecha+tipoLabel+'</td>'
+            +'<td>'+Math.abs(op.cant).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:4})+'</td>'
             +(op.isUSD?'<td class="hl">USD '+precioFmt+'</td><td>—</td>':'<td>$'+precioFmt+'</td><td class="hl">$'+netoARS+'</td>')
-            +'<td>$'+mepFmt+'<span class="src-badge '+srcClass+'">'+op.mepSrc+'</span></td>'
-            +'<td>÷</td>'
+            +(op.isUSD?'<td colspan="2" style="color:var(--text-dim)">USD directo</td>':'<td>$'+mepFmt+'<span class="src-badge '+srcClass+'">'+op.mepSrc+'</span></td><td>÷</td>')
             +'<td class="hl">USD '+usdFmt+'</td>'
             +'</tr>';
         }).join('');
-        var totalOpsUSD=ops.reduce(function(s,o){return s+o.usd;},0);
-        var totalQty=ops.reduce(function(s,o){return s+o.cant;},0);
+        var buyOps=ops.filter(function(o){return o.tipo!=='venta';});
+        var totalOpsUSD=buyOps.reduce(function(s,o){return s+(o.usd||0);},0);
+        var totalQty=buyOps.reduce(function(s,o){return s+Math.abs(o.cant);},0);
         var pppCalc=totalQty>0?totalOpsUSD/totalQty:0;
+        var srcNote=auditSource==='mov'
+          ?'Fuente: Movimientos AdCap. Neto = monto operado. MEP histórico obtenido de ArgentinaDatos API.'
+          :'Neto = precio × cantidad + comisión AdCap (~0.6%) + IVA. El PPP usa el Neto total dividido MEP de la fecha de concertación.';
         html+='<tr class="audit-row" id="audit-'+rowId+'" style="display:none">'
           +'<td colspan="8"><div class="audit-panel">'
-          +'<div class="audit-title">Detalle de compras · '+p.instrumento.slice(0,40)+'</div>'
+          +'<div class="audit-title">Detalle de operaciones · '+p.instrumento.slice(0,40)+'</div>'
           +'<table class="audit-tbl"><thead><tr>'
           +'<th>Fecha</th><th>Cantidad</th><th>Precio</th><th>Neto ARS</th>'
           +'<th>MEP utilizado</th><th></th><th>USD total</th>'
           +'</tr></thead><tbody>'+auditRows+'</tbody>'
           +'<tfoot><tr style="border-top:1px solid var(--border2)">'
-          +'<td class="hl" colspan="2">TOTAL · '+totalQty.toLocaleString('es-AR',{maximumFractionDigits:4})+' unidades</td>'
-          +'<td colspan="4" style="color:var(--text-dim)">PPP calculado</td>'
+          +'<td class="hl" colspan="2">COMPRAS · '+totalQty.toLocaleString('es-AR',{maximumFractionDigits:4})+' unidades</td>'
+          +'<td colspan="4" style="color:var(--text-dim)">PPP calculado (MEP histórico)</td>'
           +'<td class="hl">USD '+pppCalc.toFixed(4)+' / u</td>'
           +'</tr></tfoot></table>'
-          +'<div class="audit-note">Neto = precio × cantidad + comisión AdCap (~0.6%) + IVA. '
-          +'El PPP usa el Neto total (costo real) dividido MEP de la fecha de concertación o liquidación. '
+          +'<div class="audit-note">'+srcNote+' '
           +(ops.some(function(o){return o.mepSrc==='Estimado';})
             ?'⚠ Una o más operaciones usan MEP estimado (fallback mensual). Verificar con valor real del día para mayor precisión.':'')
           +'</div>'
