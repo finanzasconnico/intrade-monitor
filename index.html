@@ -1108,11 +1108,22 @@ function getFCIWeightedMep(tickerOrInst, fciData){
 // ── Find movimiento trades for a position (fuzzy match ticker / instrumento) ──
 function findMovTradesForPos(ticker, instrumento){
   var movTrades=STATE.movTrades||{};
-  var tl=(ticker||'').toLowerCase();
-  var il=(instrumento||'').toLowerCase().replace(/\s+/g,' ');
+  var tl=(ticker||'').toLowerCase().trim();
+  var il=(instrumento||'').toLowerCase().replace(/\s+/g,' ').trim();
+  // tokenize ticker and instrumento for word-level matching
+  var tTokens=tl.split(/\s+/).filter(function(w){return w.length>=3;});
+  var iTokens=il.split(/\s+/).filter(function(w){return w.length>=4;});
+
   var bestKey=Object.keys(movTrades).find(function(k){
-    if(tl&&tl.length>=3&&k.includes(tl.slice(0,Math.min(tl.length,12)))) return true;
-    if(il&&il.length>=5&&(k.includes(il.slice(0,15))||il.includes(k.slice(0,15)))) return true;
+    // exact ticker prefix match
+    if(tl.length>=3&&k.includes(tl.slice(0,Math.min(tl.length,12)))) return true;
+    // instrumento prefix match (first 15 chars)
+    if(il.length>=6&&(k.includes(il.slice(0,15))||il.includes(k.slice(0,15)))) return true;
+    // word-level match: ≥2 tokens from instrumento appear in key (handles FCI long names)
+    var hits=iTokens.filter(function(w){return k.includes(w);}).length;
+    if(hits>=2) return true;
+    // word-level match: all short ticker tokens appear in key
+    if(tTokens.length>=2&&tTokens.every(function(w){return k.includes(w);})) return true;
     return false;
   });
   if(!bestKey) return null;
@@ -1165,17 +1176,11 @@ function buildPositions(positions, boletosMap, fromValuacion, fciData){
       });
     }
 
-    // Look up movimientos trade history for this position
+    // Look up movimientos trade history (for breakdown panel only — does NOT override cost)
     var movInfo=findMovTradesForPos(p.ticker, p.instrumento);
 
     var costoTotalUSD, precioCompraUSD, pppNativo=null;
-    if(movInfo&&movInfo.buyOps.length){
-      // Use sum of historical-MEP-adjusted USD cost from Movimientos
-      var totalUSDfromMovs=movInfo.buyOps.reduce(function(s,o){return s+o.usd;},0);
-      costoTotalUSD=totalUSDfromMovs;
-      precioCompraUSD=p.cantidad>0?totalUSDfromMovs/p.cantidad:0;
-      if(p.ppp>0) pppNativo=p.ppp;
-    } else if(p.ppp>0){
+    if(p.ppp>0){
       pppNativo=p.ppp;
       if(isUSDpos){
         precioCompraUSD=p.ppp;
@@ -1493,7 +1498,8 @@ function renderPositions(mep){
       } else if(!p.hasHistory){
         pCmpTxt='<span class="no-cost">saldo anterior</span>'+editBtn;
       } else if(p.precioCompraUSD&&p.cantidad>0){
-        pCmpTxt='<span class="mono">USD '+fmtN(p.precioCompraUSD,4)+'</span>'+editBtn;
+        var prcDecimals=p.precioCompraUSD<0.01?6:p.precioCompraUSD<1?5:4;
+        pCmpTxt='<span class="mono">USD '+fmtN(p.precioCompraUSD,prcDecimals)+'</span>'+editBtn;
       } else { pCmpTxt='<span class="muted">—</span>'+editBtn; }
 
       // Precio actual per unit — also in native currency for FCIs
@@ -1508,7 +1514,8 @@ function renderPositions(mep){
           pActTxt='<span class="mono c-white">$'+fmtN(cuotaActARS,2)+' ARS c/p</span>';
         }
       } else {
-        pActTxt='<span class="mono c-white">USD '+fmtN(pActUSD,4)+'</span>';
+        var actDecimals=pActUSD<0.01?6:pActUSD<1?5:4;
+        pActTxt='<span class="mono c-white">USD '+fmtN(pActUSD,actDecimals)+'</span>';
       }
 
       // For FCIs without cost basis, use current value as proxy for invested
