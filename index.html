@@ -760,6 +760,16 @@ function parseValuacion(buffer){
       var catL2=currentCategory.toLowerCase();
       var isUSD=catL2.includes('dolar')||catL2.includes('mep');
 
+      // For FCI categories, verify isUSD by comparing native importe (col6) vs ARS importe (col12).
+      // If they're the same (or close), the fund is ARS-denominated regardless of category header.
+      // If col12 >> col6 by a large factor (MEP ~1000+), the fund is truly USD.
+      if(isUSD&&(catL2.includes('fondo')||catL2.includes('fci'))){
+        var importeARS12=parseNum(r[12]);
+        if(importeNativo>0&&importeARS12>0&&importeARS12<importeNativo*50){
+          isUSD=false; // ARS fund misclassified by category header
+        }
+      }
+
       // importeNativo (col6) = total value in native currency (ARS for CEDEARs/ETFs/FCI-pesos, USD for ONs/FCI-dolar)
       positions.push({
         instrumento:instrumento, ticker:ticker, codigo:codigo,
@@ -974,10 +984,12 @@ function parseMov(buffer){
       } else {
         inflows.push({fecha:liq,concepto:'Depósito Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
       }
-    } else if(isWithdrawal&&neto<0&&isUSD){
-      // Only USD withdrawals are auto-detected. ARS Comprobante de Pago is typically
-      // the ARS leg of a MEP purchase (internal FX). Real ARS extractions can be added manually.
-      inflows.push({fecha:liq,concepto:'Extracción USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
+    } else if(isWithdrawal&&neto<0){
+      if(isUSD){
+        inflows.push({fecha:liq,concepto:'Extracción USD',moneda:'USD',monto:neto,mep:1,mepSource:'usd',mepVerified:true});
+      } else {
+        inflows.push({fecha:liq,concepto:'Extracción Pesos',moneda:'ARS',monto:neto,mep:0,mepSource:'pendiente',mepVerified:false});
+      }
     }
   });
   return {inflows:inflows,lastDate:lastDate,clientHint:clientHint};
@@ -1239,10 +1251,15 @@ function editPPP(ticker, isUSD){
   var modal=document.createElement('div');
   modal.id='ppp-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(8,13,26,.85);z-index:500;display:flex;align-items:center;justify-content:center';
-  modal.innerHTML='<div style="background:#0d1526;border:1px solid #243660;border-radius:12px;padding:28px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.6)">'
+  modal.innerHTML='<div style="background:#0d1526;border:1px solid #243660;border-radius:12px;padding:28px;width:400px;box-shadow:0 20px 60px rgba(0,0,0,.6)">'
     +'<div style="font-size:12px;color:#607090;margin-bottom:6px">Precio de compra promedio · '+ticker+'</div>'
-    +'<div style="font-size:13px;color:#e8edf8;margin-bottom:16px">Ingresá el PPP en <strong style="color:#f0b429">'+label+'</strong><br><span style="font-size:11px;color:#607090">Encontralo en AdCap → Rendimientos → Valuación Final</span></div>'
-    +'<input id="ppp-inp" value="'+(cur||'')+'" placeholder="ej: 17.50" style="width:100%;background:#080d1a;border:1px solid #243660;border-radius:8px;padding:10px 14px;color:#e8edf8;font-size:18px;font-family:monospace;margin-bottom:16px">'
+    +'<div style="font-size:13px;color:#e8edf8;margin-bottom:8px">Ingresá el PPP en <strong style="color:#f0b429">'+label+'</strong></div>'
+    +'<div style="font-size:11px;color:#607090;background:#080d1a;border-radius:6px;padding:8px 12px;margin-bottom:14px;line-height:1.5">'
+    +'💡 <strong style="color:#a0b0cc">¿Dónde encontrar el PPP?</strong><br>'
+    +'En AdCap: <strong style="color:#e8edf8">Valuación Final → Rendimientos</strong>, desglosar el fondo y copiar el valor de la columna <strong style="color:#f0b429">PPP</strong>.<br>'
+    +'<span style="color:#607090">También podés pegar toda la fila — se extrae el PPP automáticamente.</span>'
+    +'</div>'
+    +'<input id="ppp-inp" value="'+(cur||'')+'" placeholder="ej: 18.37  ó pegá la fila completa" style="width:100%;background:#080d1a;border:1px solid #243660;border-radius:8px;padding:10px 14px;color:#e8edf8;font-size:16px;font-family:monospace;margin-bottom:16px">'
     +'<div style="display:flex;gap:10px">'
     +'<button onclick="confirmPPP(\''+ticker+'\','+isUSD+')" style="flex:1;background:#1a6ef5;border:none;border-radius:8px;padding:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Guardar</button>'
     +'<button onclick="document.getElementById(\'ppp-modal\').remove()" style="flex:1;background:transparent;border:1px solid #243660;border-radius:8px;padding:10px;color:#607090;font-size:13px;cursor:pointer">Cancelar</button>'
@@ -1256,8 +1273,12 @@ function editPPP(ticker, isUSD){
 }
 function confirmPPP(ticker,isUSD){
   var inp=document.getElementById('ppp-inp');
-  var val=inp?inp.value:'';
-  var n=parseFloat(String(val).replace(',','.'));
+  var val=inp?inp.value.trim():'';
+  // If pasted row (multiple numbers), extract the 2nd numeric token = PPP column
+  var nums=val.replace(/[$%]/g,'').split(/[\s\t\n]+/).map(function(t){
+    return parseFloat(t.replace(/\./g,'').replace(',','.'));
+  }).filter(function(v){return !isNaN(v)&&v>0;});
+  var n=nums.length>=2?nums[1]:nums[0]||0; // 2nd number = PPP; fallback to first
   if(!n||n<=0){ localStorage.removeItem('ppp_'+ticker); }
   else { localStorage.setItem('ppp_'+ticker,n); }
   var modal=document.getElementById('ppp-modal');
@@ -1342,7 +1363,7 @@ function renderPositions(mep){
       var expandable=hasOps&&hasOps.ops&&hasOps.ops.length>0;
       var fciHint='';
       if(p.isFCI&&!p.hasHistory&&!savedPPP){
-        fciHint='<span class="fci-hint" title="Para ver el rendimiento real: en AdCap ir a Valuación Final → Rendimientos, copiar y pegar toda la fila de este fondo aquí">💡 Ver rendimiento</span>';
+        fciHint='<span class="fci-hint" title="Ingresá el PPP usando el ✎: ir a AdCap → Valuación Final → Rendimientos → desglosar el fondo → columna PPP">💡 Ingresar PPP</span>';
       }
       html+='<tr class="pos-row'+(expandable?' expandable':'')+'" id="'+rowId+'"'
         +(expandable?' onclick="toggleAudit(\''+rowId+'\')"':'')+'>'
