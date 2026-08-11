@@ -422,9 +422,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
       </div>
     </div>
 
-    <!-- ANÁLISIS DE RENTABILIDAD REALIZADA -->
-    <div class="section" id="realized-section" style="display:none"></div>
-
     <!-- INGRESOS DE CAPITAL -->
     <div class="section">
       <div class="section-hdr">
@@ -1366,7 +1363,6 @@ function render(){
   renderHero(mep);
   renderPositions(mep);
   renderInflows();
-  renderRealizedAnalysis();
 }
 
 function getPortfolioUSD(mep){
@@ -1469,7 +1465,7 @@ function confirmPPP(ticker,isUSD){
 }
 
 // ═══════════════════════════════════════
-// REALIZED P&L ANALYSIS
+// (reserved)
 // ═══════════════════════════════════════
 function buildRealizedPnL(){
   var movTrades=STATE.movTrades||{};
